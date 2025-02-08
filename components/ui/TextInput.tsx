@@ -1,33 +1,33 @@
-import { StyleSheet, TextInput as RNTextInput, TextInputProps } from 'react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import { StyleSheet, TextInput as RNTextInput, TextInputProps, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { Colors } from '@/constants/Colors';
+
+const AnimatedView = Animated.createAnimatedComponent(View);
 
 export function TextInput(props: TextInputProps) {
-  const textColor = useThemeColor({}, 'text');
-  const backgroundColor = useThemeColor({}, 'background');
-
   return (
-    <RNTextInput
-      {...props}
-      style={[
-        styles.input,
-        {
-          color: textColor,
-          backgroundColor,
-          borderColor: textColor,
-        },
-        props.style,
-      ]}
-      placeholderTextColor={textColor + '80'}
-    />
+    <AnimatedView entering={FadeIn} style={styles.container}>
+      <RNTextInput
+        placeholderTextColor="rgba(0,0,0,0.5)"
+        style={[styles.input, props.style]}
+        {...props}
+      />
+    </AnimatedView>
   );
 }
 
 const styles = StyleSheet.create({
-  input: {
-    height: 48,
+  container: {
+    backgroundColor: Colors.background.light,
+    borderRadius: 12,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderRadius: 8,
+    borderColor: Colors.border.light,
+  },
+  input: {
+    height: 50,
     paddingHorizontal: 16,
     fontSize: 16,
+    color: Colors.text.primary,
   },
 }); 

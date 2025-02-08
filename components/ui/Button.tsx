@@ -1,63 +1,78 @@
-import { StyleSheet, TouchableOpacity, TouchableOpacityProps } from 'react-native';
-import { ThemedText } from '../ThemedText';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import { StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
+import Animated, { 
+  useAnimatedStyle, 
+  withSpring,
+  withSequence,
+  withTiming 
+} from 'react-native-reanimated';
+import { Colors } from '@/constants/Colors';
 
-interface ButtonProps extends TouchableOpacityProps {
-  variant?: 'primary' | 'secondary' | 'outline';
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
+interface ButtonProps {
+  onPress?: () => void;
+  children: React.ReactNode;
+  variant?: 'primary' | 'outline';
   size?: 'small' | 'medium' | 'large';
   loading?: boolean;
+  disabled?: boolean;
+  style?: any;
 }
 
 export function Button({ 
+  onPress, 
+  children, 
   variant = 'primary',
   size = 'medium',
   loading,
-  style,
-  children,
-  ...props 
+  disabled,
+  style 
 }: ButtonProps) {
-  const backgroundColor = useThemeColor({}, variant === 'primary' ? 'primary' : 'secondary');
-  const textColor = useThemeColor({}, 'background');
-  const borderColor = useThemeColor({}, variant === 'outline' ? 'primary' : 'background');
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(disabled ? 0.95 : 1) }],
+  }));
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
+      onPress={onPress}
+      disabled={disabled || loading}
       style={[
         styles.button,
         styles[size],
-        {
-          backgroundColor: variant === 'outline' ? 'transparent' : backgroundColor,
-          borderColor: borderColor,
-          borderWidth: variant === 'outline' ? 2 : 0,
-        },
+        variant === 'outline' && styles.outline,
+        disabled && styles.disabled,
+        animatedStyle,
         style,
       ]}
-      {...props}
     >
-      <ThemedText
-        style={[
+      {loading ? (
+        <ActivityIndicator color={variant === 'outline' ? Colors.primary : '#fff'} />
+      ) : (
+        <Text style={[
           styles.text,
-          {
-            color: variant === 'outline' ? backgroundColor : textColor,
-          },
-        ]}
-      >
-        {loading ? 'Loading...' : children}
-      </ThemedText>
-    </TouchableOpacity>
+          variant === 'outline' && styles.outlineText,
+        ]}>
+          {children}
+        </Text>
+      )}
+    </AnimatedTouchable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
+    backgroundColor: Colors.primary,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  outline: {
+    backgroundColor: 'transparent',
+  },
+  disabled: {
+    opacity: 0.6,
   },
   small: {
     paddingVertical: 8,
@@ -72,7 +87,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   text: {
+    color: Colors.text.light,
     fontSize: 16,
     fontWeight: '600',
+  },
+  outlineText: {
+    color: Colors.primary,
   },
 }); 

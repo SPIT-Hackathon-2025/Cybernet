@@ -34,6 +34,17 @@ export const issueService = {
     return data;
   },
 
+  async getIssueById(id: string) {
+    const { data, error } = await supabase
+      .from('issues')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async verifyIssue(issueId: string, userId: string) {
     const { data, error } = await supabase.rpc('verify_issue', {
       p_issue_id: issueId,

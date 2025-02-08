@@ -1,5 +1,6 @@
 import { StyleSheet, View, ViewProps } from 'react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { Colors } from '@/constants/Colors';
 
 export function Card({ style, ...props }: ViewProps) {
   const backgroundColor = useThemeColor({}, 'card');
@@ -22,13 +23,18 @@ export function Card({ style, ...props }: ViewProps) {
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: Colors.background.light,
     borderRadius: 16,
     padding: 16,
+    shadowColor: Colors.text.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
     borderWidth: 1,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    borderColor: Colors.border.light,
   },
 }); 
