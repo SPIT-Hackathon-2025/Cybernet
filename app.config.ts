@@ -1,41 +1,37 @@
-import { ExpoConfig } from 'expo/config';
+import { ExpoConfig, ConfigContext } from 'expo/config';
 
-const config: ExpoConfig = {
-  name: 'pokemon-go-community',
-  slug: 'pokemon-go-community',
-  version: '1.0.0',
-  orientation: 'portrait',
-  icon: './assets/images/icon.png',
-  scheme: 'pokemongo-community',
-  userInterfaceStyle: 'automatic',
+export default ({ config }: ConfigContext): ExpoConfig => ({
+  ...config,
+  name: "PokéGuide",
+  slug: "pokeguide",
+  version: "1.0.0",
+  orientation: "portrait",
+  icon: "./assets/icon.png",
+  userInterfaceStyle: "automatic",
   splash: {
-    image: './assets/images/splash-icon.png',
-    resizeMode: 'contain',
-    backgroundColor: '#ffffff'
+    image: "./assets/splash.png",
+    resizeMode: "contain",
+    backgroundColor: "#FF5D00"
   },
+  assetBundlePatterns: [
+    "**/*"
+  ],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.pokemongo.community',
-    config: {
-      usesNonExemptEncryption: false
-    }
+    bundleIdentifier: "com.pokeguide.app"
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/images/adaptive-icon.png',
-      backgroundColor: '#ffffff'
+      foregroundImage: "./assets/adaptive-icon.png",
+      backgroundColor: "#FF5D00"
     },
-    package: 'com.pokemongo.community'
+    package: "com.pokeguide.app"
+  },
+  web: {
+    favicon: "./assets/favicon.png"
   },
   plugins: [
-    'expo-router',
-    'expo-build-properties',
-  ],
-  extra: {
-    eas: {
-      projectId: "your-project-id"
-    }
-  }
-};
-
-export default config; 
+    "expo-router",
+    "expo-sqlite"
+  ]
+}); 

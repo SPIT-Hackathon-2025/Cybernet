@@ -62,15 +62,15 @@ export default function IssueDetailScreen() {
   const getStatusColor = (status: Issue['status']) => {
     switch (status) {
       case 'pending':
-        return Colors.light.warning;
+        return '#FFB900';
       case 'verified':
-        return Colors.light.success;
+        return '#2ECC71';
       case 'in_progress':
-        return Colors.primary;
+        return '#FF5D00';
       case 'resolved':
-        return Colors.text.secondary;
+        return '#666666';
       default:
-        return Colors.primary;
+        return '#FF5D00';
     }
   };
 
@@ -81,7 +81,7 @@ export default function IssueDetailScreen() {
   return (
     <ScrollView style={styles.container}>
       <LinearGradient
-        colors={[getStatusColor(issue.status), Colors.background.light]}
+        colors={[getStatusColor(issue.status), '#FFFFFF']}
         style={styles.header}
       >
         <Button
@@ -200,7 +200,7 @@ export default function IssueDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.light,
+    backgroundColor: '#FFFFFF',
   },
   header: {
     padding: 24,
@@ -249,36 +249,41 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   value: {
-    fontWeight: '600',
+    fontWeight: '500',
   },
   mapCard: {
     marginBottom: 16,
+    padding: 0,
+    overflow: 'hidden',
   },
   sectionTitle: {
     marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   map: {
     height: 200,
-    borderRadius: 12,
-    overflow: 'hidden',
   },
   photosCard: {
     marginBottom: 16,
+    padding: 0,
+    overflow: 'hidden',
   },
   photoScroll: {
-    marginHorizontal: -16,
     paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   photo: {
     width: 200,
     height: 150,
-    borderRadius: 12,
+    borderRadius: 8,
     marginRight: 12,
   },
   actions: {
+    flexDirection: 'row',
     gap: 12,
   },
   verifyButton: {
-    backgroundColor: Colors.light.success,
+    flex: 1,
   },
 }); 

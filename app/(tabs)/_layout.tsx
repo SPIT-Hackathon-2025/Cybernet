@@ -1,11 +1,19 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, TouchableOpacity, Platform } from 'react-native';
+import { View, TouchableOpacity, Platform, useColorScheme } from 'react-native';
 import { HapticTab } from '@/components/HapticTab';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
+import Animated, { 
+  FadeIn, 
+  FadeOut,
+  Layout,
+  withSpring,
+  useAnimatedStyle,
+  withTiming
+} from 'react-native-reanimated';
+import { Colors } from '@/constants/Colors';
 
 // Define theme colors
 const THEME = {
@@ -13,8 +21,35 @@ const THEME = {
   inactive: '#94A3B8', // Medium grey for inactive
 };
 
+const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
+
+function TabIcon({ iconName, color, focused }: { iconName: keyof typeof Ionicons.glyphMap; color: string; focused: boolean }) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { 
+        scale: withSpring(focused ? 1.2 : 1, {
+          mass: 1,
+          damping: 15,
+          stiffness: 200,
+        })
+      }
+    ],
+    opacity: withTiming(focused ? 1 : 0.7, { duration: 200 })
+  }));
+
+  return (
+    <AnimatedIonicons 
+      style={animatedStyle}
+      name={focused ? iconName : `${iconName}-outline` as keyof typeof Ionicons.glyphMap}
+      size={28} 
+      color={color}
+    />
+  );
+}
+
 export default function TabLayout() {
   const { signOut } = useAuth();
+  const colorScheme = useColorScheme();
 
   const handleMorePress = () => {
     if (Platform.OS !== 'web') {
@@ -26,13 +61,13 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: THEME.primary,
-        tabBarInactiveTintColor: THEME.inactive,
+        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].primary,
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         tabBarStyle: {
           height: 65,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: Colors[colorScheme ?? 'light'].background,
           borderTopWidth: 1,
-          borderTopColor: 'rgba(0, 0, 0, 0.1)',
+          borderTopColor: Colors[colorScheme ?? 'light'].border,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -43,10 +78,6 @@ export default function TabLayout() {
         headerShown: false,
         tabBarItemStyle: {
           paddingVertical: 4,
-        },
-        animation: 'spring',
-        contentStyle: {
-          backgroundColor: '#FFFFFF',
         }
       }}>
       <Tabs.Screen
@@ -54,11 +85,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? "home" : "home-outline"} 
-              size={28} 
-              color={color}
-            />
+            <TabIcon iconName="home" color={color} focused={focused} />
           ),
         }}
       />
@@ -67,11 +94,7 @@ export default function TabLayout() {
         options={{
           title: 'Lost & Found',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? "search" : "search-outline"} 
-              size={28} 
-              color={color}
-            />
+            <TabIcon iconName="search" color={color} focused={focused} />
           ),
         }}
       />
@@ -80,11 +103,7 @@ export default function TabLayout() {
         options={{
           title: 'Quests',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? "trophy" : "trophy-outline"} 
-              size={28} 
-              color={color}
-            />
+            <TabIcon iconName="trophy" color={color} focused={focused} />
           ),
         }}
       />
@@ -93,11 +112,7 @@ export default function TabLayout() {
         options={{
           title: 'Report',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? "alert-circle" : "alert-circle-outline"} 
-              size={28} 
-              color={color}
-            />
+            <TabIcon iconName="alert-circle" color={color} focused={focused} />
           ),
         }}
       />
@@ -106,11 +121,7 @@ export default function TabLayout() {
         options={{
           title: 'More',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? "menu" : "menu-outline"} 
-              size={28} 
-              color={color}
-            />
+            <TabIcon iconName="menu" color={color} focused={focused} />
           ),
         }}
       />

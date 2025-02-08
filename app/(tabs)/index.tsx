@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Alert, Platform, Text, TouchableOpacity, Animated as RNAnimated } from 'react-native';
+import { StyleSheet, View, Alert, Platform, Text, TouchableOpacity, Animated as RNAnimated, useColorScheme } from 'react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '@/contexts/AuthContext';
 import { Issue } from '@/types';
@@ -17,6 +17,8 @@ import { openSettings } from 'expo-linking';
 
 export default function MapScreen() {
   const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
   const [issues, setIssues] = useState<Issue[]>([]);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -204,37 +206,54 @@ export default function MapScreen() {
     }
   };
 
+  const handleMarkerPress = (issue: Issue) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push({
+      pathname: '/issue/[id]' as const,
+      params: { id: issue.id }
+    } as any);
+  };
+
+  const handleAddIssue = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/issue/new' as any);
+  };
+
   const getMarkerColor = (status: Issue['status']) => {
     switch (status) {
-      case 'pending': return Colors.light.warning;
-      case 'verified': return Colors.light.success;
-      case 'in_progress': return Colors.light.primary;
-      case 'resolved': return Colors.light.textDim;
-      default: return Colors.light.primary;
+      case 'pending': return theme.warning;
+      case 'verified': return theme.success;
+      case 'in_progress': return theme.primary;
+      case 'resolved': return theme.textDim;
+      default: return theme.primary;
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LinearGradient
         colors={['rgba(0,0,0,0.5)', 'transparent']}
         style={styles.headerGradient}
       >
-        <Text style={styles.headerTitle}>Community Map</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Community Map</Text>
         <View style={styles.statsContainer}>
           <Card style={styles.statCard}>
-            <Ionicons name="alert-circle" size={24} color={Colors.light.warning} />
-            <Text style={styles.statNumber}>
+            <Ionicons name="alert-circle" size={24} color={theme.warning} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>
               {issues.filter(i => i.status === 'pending').length}
             </Text>
-            <Text style={styles.statLabel}>Pending</Text>
+            <Text style={[styles.statLabel, { color: theme.textDim }]}>Pending</Text>
           </Card>
           <Card style={styles.statCard}>
-            <Ionicons name="checkmark-circle" size={24} color={Colors.light.success} />
-            <Text style={styles.statNumber}>
+            <Ionicons name="checkmark-circle" size={24} color={theme.success} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>
               {issues.filter(i => i.status === 'resolved').length}
             </Text>
-            <Text style={styles.statLabel}>Resolved</Text>
+            <Text style={[styles.statLabel, { color: theme.textDim }]}>Resolved</Text>
           </Card>
         </View>
       </LinearGradient>
@@ -263,7 +282,7 @@ export default function MapScreen() {
             }}
             title={issue.title}
             description={issue.description}
-            onPress={() => router.push(`/issue/${issue.id}`)}
+            onPress={() => handleMarkerPress(issue)}
           >
             <View style={[styles.markerContainer, { backgroundColor: getMarkerColor(issue.status) }]}>
               <Ionicons name="alert-circle" size={24} color="white" />
@@ -292,14 +311,14 @@ export default function MapScreen() {
           >
             <PokeguideCharacter 
               emotion={showGuideMessage ? "happy-with-football" : "explaining"} 
-              size={60}
+              size={20}
               animated={false}
             />
           </RNAnimated.View>
 
           {showGuideMessage && (
             <View style={styles.messageBox}>
-              <Text style={styles.messageText}>
+              <Text style={[styles.messageText, { color: theme.textDim }]}>
                 Hey trainer! Tap the + button to report issues you find during your adventure! 
                 Let's make our community better together! 🌟
               </Text>
@@ -310,7 +329,7 @@ export default function MapScreen() {
 
       <FAB
         icon="add"
-        onPress={() => router.push('/issue/new')}
+        onPress={handleAddIssue}
         style={styles.fab}
         size={28}
       />
@@ -322,83 +341,69 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
   headerGradient: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 1,
-    padding: 16,
-    paddingTop: 48,
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
     marginBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
+    gap: 12,
   },
   statCard: {
+    flex: 1,
     padding: 12,
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 12,
-    width: '45%',
+    gap: 4,
   },
   statNumber: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: Colors.light.text,
-    marginTop: 4,
   },
   statLabel: {
-    fontSize: 12,
-    color: Colors.light.textDim,
-    marginTop: 2,
-  },
-  map: {
-    width: '100%',
-    height: '100%',
+    fontSize: 14,
   },
   markerContainer: {
     padding: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.light.primary,
-    borderWidth: 2,
-    borderColor: 'white',
+    borderRadius: 8,
   },
   fab: {
     position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 80,
-    backgroundColor: Colors.light.primary,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    bottom: 30,
+    right: 16,
+    zIndex: 1,
   },
   emptyState: {
     position: 'absolute',
-    bottom: -30, // This puts it behind the tab bar
+    bottom: -20,
     left: 0,
     right: 0,
     alignItems: 'center',
     zIndex: 1,
   },
   guideWrapper: {
-    padding: 8,
+    padding: 4,
   },
   messageBox: {
     position: 'absolute',
-    bottom: 140, // Adjusted to appear above the tab bar
-    width: 250,
+    bottom: 120,
+    width: 200,
     backgroundColor: 'white',
-    padding: 16,
+    padding: 10,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: {
@@ -411,9 +416,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   messageText: {
-    fontSize: 14,
-    color: Colors.text.primary,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#4A4A4A',
   },
 });
 

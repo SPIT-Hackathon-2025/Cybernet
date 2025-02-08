@@ -1,6 +1,5 @@
-import { StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 
 interface FABProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -14,6 +13,7 @@ export function FAB({ icon, onPress, style, size = 24 }: FABProps) {
     <TouchableOpacity
       style={[styles.fab, style]}
       onPress={onPress}
+      activeOpacity={0.8}
     >
       <Ionicons name={icon} size={size} color="white" />
     </TouchableOpacity>
@@ -25,10 +25,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.light.primary,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     elevation: 6,
+    backgroundColor: '#FF5D00', // Hardcoded primary color
     shadowColor: '#000',
     shadowOffset: {
       width: 0,

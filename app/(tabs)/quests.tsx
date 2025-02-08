@@ -10,6 +10,7 @@ import { Quest } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { gamificationService } from '@/services/gamificationService';
 import { PokeguideCharacter } from '@/components/PokeguideCharacter';
+import { useColorScheme } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -17,6 +18,8 @@ export default function QuestsScreen() {
   const { user } = useAuth();
   const [quests, setQuests] = useState<Quest[]>([]);
   const [loading, setLoading] = useState(true);
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
 
   useEffect(() => {
     if (user) {
@@ -36,9 +39,7 @@ export default function QuestsScreen() {
   };
 
   const getQuestProgress = (quest: Quest) => {
-    const totalActions = quest.required_actions.reduce((acc, action) => acc + action.count, 0);
-    const completedActions = quest.required_actions.reduce((acc, action) => acc + action.completed, 0);
-    return (completedActions / totalActions) * 100;
+    return (quest.progress / quest.required) * 100;
   };
 
   const renderQuest = ({ item: quest }: { item: Quest }) => (
@@ -49,47 +50,39 @@ export default function QuestsScreen() {
             {quest.title}
           </ThemedText>
           <View style={styles.rewardBadge}>
-            <ThemedText style={styles.rewardText}>
-              {quest.reward_coins} CC
+            <ThemedText style={styles.rewardText} dimmed>
+              {quest.reward_amount} CC
             </ThemedText>
           </View>
         </View>
 
-        <ThemedText style={styles.questDescription}>
+        <ThemedText style={styles.questDescription} dimmed>
           {quest.description}
         </ThemedText>
 
         <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
+          <View style={[styles.progressBar, { backgroundColor: theme.card }]}>
             <View 
               style={[
                 styles.progressFill,
-                { width: `${getQuestProgress(quest)}%` }
+                { 
+                  width: `${getQuestProgress(quest)}%`,
+                  backgroundColor: theme.primary
+                }
               ]} 
             />
           </View>
-          <ThemedText style={styles.progressText}>
+          <ThemedText style={styles.progressText} dimmed>
             {getQuestProgress(quest).toFixed(0)}%
           </ThemedText>
         </View>
 
-        <View style={styles.questActions}>
-          {quest.required_actions.map((action, index) => (
-            <View key={index} style={styles.action}>
-              <ThemedText style={styles.actionText}>
-                {action.type.split('_').map(word => 
-                  word.charAt(0).toUpperCase() + word.slice(1)
-                ).join(' ')}
-              </ThemedText>
-              <ThemedText style={styles.actionProgress}>
-                {action.completed}/{action.count}
-              </ThemedText>
-            </View>
-          ))}
-        </View>
-
         {quest.status === 'completed' ? (
-          <Button variant="outline" disabled>
+          <Button 
+            variant="outline" 
+            disabled 
+            onPress={() => {}}
+          >
             Completed
           </Button>
         ) : (
@@ -118,13 +111,13 @@ export default function QuestsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LinearGradient
-        colors={[Colors.primary, Colors.light.warning]}
+        colors={[theme.gradientStart, theme.gradientEnd]}
         style={styles.header}
       >
-        <ThemedText style={styles.headerTitle}>Daily Quests</ThemedText>
-        <ThemedText style={styles.headerSubtitle}>
+        <ThemedText style={styles.headerTitle} color="#FFFFFF">Daily Quests</ThemedText>
+        <ThemedText style={styles.headerSubtitle} color="rgba(255, 255, 255, 0.8)">
           Complete quests to earn CivicCoins and badges
         </ThemedText>
       </LinearGradient>
@@ -133,7 +126,7 @@ export default function QuestsScreen() {
         data={quests}
         renderItem={renderQuest}
         contentContainerStyle={styles.questList}
-        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
       />
     </View>
   );
@@ -142,7 +135,6 @@ export default function QuestsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.light,
   },
   header: {
     padding: 24,
@@ -151,13 +143,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     marginBottom: 8,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
   },
   questList: {
     padding: 16,
@@ -178,18 +167,16 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   rewardBadge: {
-    backgroundColor: Colors.light.accent,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
+    backgroundColor: 'rgba(255, 133, 51, 0.1)',
   },
   rewardText: {
-    color: Colors.text.primary,
     fontWeight: 'bold',
   },
   questDescription: {
     marginBottom: 16,
-    opacity: 0.8,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -200,35 +187,17 @@ const styles = StyleSheet.create({
   progressBar: {
     flex: 1,
     height: 8,
-    backgroundColor: Colors.border.light,
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
     borderRadius: 4,
   },
   progressText: {
     fontSize: 14,
-    opacity: 0.8,
     width: 40,
     textAlign: 'right',
-  },
-  questActions: {
-    marginBottom: 16,
-    gap: 8,
-  },
-  action: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  actionText: {
-    opacity: 0.8,
-  },
-  actionProgress: {
-    fontWeight: '600',
   },
   completionGuide: {
     position: 'absolute',

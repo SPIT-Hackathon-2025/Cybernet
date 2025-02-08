@@ -7,20 +7,10 @@
       "@/*": [
         "./*"
       ]
-    },
-    "types": [
-      "react",
-      "react-native",
-      "@types/jest",
-      "expo-linear-gradient"
-    ]
+    }
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    "custom.d.ts"
-  ],
-  "exclude": [
-    "node_modules"
+    "**/*.tsx"
   ]
 }

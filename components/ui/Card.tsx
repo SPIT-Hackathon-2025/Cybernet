@@ -1,40 +1,63 @@
-import { StyleSheet, View, ViewProps } from 'react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import { View, ViewProps, StyleSheet, useColorScheme } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 
-export function Card({ style, ...props }: ViewProps) {
-  const backgroundColor = useThemeColor({}, 'card');
-  const borderColor = useThemeColor({}, 'border');
+interface CardProps extends ViewProps {
+  elevation?: number;
+  gradient?: boolean;
+}
+
+export function Card({ style, elevation = 2, gradient = true, ...props }: CardProps) {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+
+  const Container = gradient ? LinearGradient : View;
+  const containerProps = gradient ? {
+    colors: [theme.cardGradientStart, theme.cardGradientEnd],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+  } : {
+    style: { backgroundColor: theme.card }
+  };
 
   return (
     <View
       style={[
-        styles.card,
+        styles.shadow,
         {
-          backgroundColor,
-          borderColor,
+          shadowOpacity: elevation * 0.1,
+          shadowRadius: elevation,
+          elevation: elevation,
         },
-        style,
       ]}
-      {...props}
-    />
+    >
+      <Container
+        {...containerProps}
+        style={[
+          styles.card,
+          style,
+        ]}
+        {...props}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.background.light,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: Colors.text.primary,
+  shadow: {
+    borderRadius: 12,
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: Colors.border.light,
+    elevation: 2,
+  },
+  card: {
+    borderRadius: 12,
+    padding: 16,
+    overflow: 'hidden',
   },
 }); 

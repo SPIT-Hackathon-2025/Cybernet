@@ -1,71 +1,55 @@
-import { Text, type TextProps, StyleSheet } from 'react-native';
+import { Text, TextProps, StyleSheet, useColorScheme } from 'react-native';
+import { Colors } from '@/constants/Colors';
 
-import { useThemeColor } from '@/hooks/useThemeColor';
+interface ThemedTextProps extends TextProps {
+  type?: 'title' | 'subtitle' | 'body' | 'caption';
+  color?: string;
+  dimmed?: boolean;
+}
 
-export type ThemedTextProps = TextProps & {
-  lightColor?: string;
-  darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
-};
-
-export function ThemedText({
-  style,
-  lightColor,
-  darkColor,
-  type = 'default',
-  ...rest
+export function ThemedText({ 
+  style, 
+  type = 'body',
+  color,
+  dimmed = false,
+  ...props 
 }: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
 
-  return (
-    <Text
-      style={[
-        { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+  const textStyles = [
+    styles.base,
+    styles[type],
+    { 
+      color: color || (dimmed ? theme.textDim : theme.text)
+    },
+    style,
+  ];
+
+  return <Text style={textStyles} {...props} />;
 }
 
 const styles = StyleSheet.create({
-  default: {
+  base: {
     fontSize: 16,
-    lineHeight: 24,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    fontFamily: 'System',
   },
   title: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
-    lineHeight: 40,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    lineHeight: 28,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  link: {
-    lineHeight: 24,
+  body: {
     fontSize: 16,
-    color: '#0a7ea4',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    lineHeight: 24,
+  },
+  caption: {
+    fontSize: 12,
+    opacity: 0.7,
   },
 });

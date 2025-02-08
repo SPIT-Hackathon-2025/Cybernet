@@ -1,55 +1,74 @@
-import { StyleSheet, View, TouchableOpacity, Text, Dimensions, Platform } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { View, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { Colors } from '@/constants/Colors';
+import { ThemedText } from '@/components/ThemedText';
+import { Ionicons } from '@expo/vector-icons';
+import { router, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, { 
-  useAnimatedStyle, 
-  useSharedValue, 
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
   withSpring,
-  runOnJS,
   useAnimatedGestureHandler,
-  interpolate,
-  Extrapolate
+  runOnJS,
 } from 'react-native-reanimated';
 import { PanGestureHandler } from 'react-native-gesture-handler';
+import { useEffect } from 'react';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAX_TRANSLATE_Y = -SCREEN_HEIGHT + 50;
+const SCREEN_HEIGHT = 600; // Approximate screen height
+const MAX_TRANSLATE_Y = -SCREEN_HEIGHT + 100;
+const MIN_TRANSLATE_Y = -50;
 
-interface MoreOptionProps {
-  icon: string;
+type MenuItem = {
+  id: string;
   title: string;
-  onPress: () => void;
-}
+  icon: keyof typeof Ionicons.glyphMap;
+  route: string;
+};
 
-function MoreOption({ icon, title, onPress }: MoreOptionProps) {
-  return (
-    <TouchableOpacity 
-      style={styles.option}
-      onPress={() => {
-        if (Platform.OS !== 'web') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        onPress();
-      }}
-    >
-      <Ionicons name={icon as any} size={24} color={Colors.text.primary} />
-      <Text style={styles.optionText}>{title}</Text>
-      <Ionicons name="chevron-forward" size={20} color={Colors.text.secondary} />
-    </TouchableOpacity>
-  );
-}
+const menuItems: MenuItem[] = [
+  {
+    id: 'profile',
+    title: 'Profile',
+    icon: 'person',
+    route: '/(more)/profile',
+  },
+  {
+    id: 'achievements',
+    title: 'Achievements',
+    icon: 'trophy',
+    route: '/(more)/achievements',
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    icon: 'settings',
+    route: '/(more)/settings',
+  },
+];
 
 export default function MoreScreen() {
   const { signOut } = useAuth();
+  const pathname = usePathname();
   const translateY = useSharedValue(0);
-  const context = useSharedValue({ y: 0 });
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+
+  useEffect(() => {
+    if (pathname === '/more') {
+      translateY.value = withSpring(-300, {
+        damping: 50,
+        stiffness: 300,
+      });
+    }
+  }, [pathname]);
 
   const scrollTo = (destination: number) => {
     'worklet';
-    translateY.value = withSpring(destination, { damping: 50 });
+    translateY.value = withSpring(destination, {
+      damping: 50,
+      stiffness: 300,
+    });
   };
 
   const gestureHandler = useAnimatedGestureHandler({
@@ -57,7 +76,8 @@ export default function MoreScreen() {
       ctx.startY = translateY.value;
     },
     onActive: (event, ctx) => {
-      translateY.value = ctx.startY + event.translationY;
+      const newTranslateY = ctx.startY + event.translationY;
+      translateY.value = Math.max(MAX_TRANSLATE_Y, Math.min(MIN_TRANSLATE_Y, newTranslateY));
     },
     onEnd: (event) => {
       if (event.velocityY < -500) {
@@ -65,7 +85,7 @@ export default function MoreScreen() {
       } else if (event.velocityY > 500) {
         scrollTo(0);
       } else {
-        if (translateY.value < MAX_TRANSLATE_Y / 2) {
+        if (translateY.value < -SCREEN_HEIGHT / 2) {
           scrollTo(MAX_TRANSLATE_Y);
         } else {
           scrollTo(0);
@@ -75,107 +95,116 @@ export default function MoreScreen() {
   });
 
   const rBottomSheetStyle = useAnimatedStyle(() => {
-    const borderRadius = interpolate(
-      translateY.value,
-      [MAX_TRANSLATE_Y + 50, MAX_TRANSLATE_Y],
-      [25, 5],
-      Extrapolate.CLAMP
-    );
-
     return {
-      borderRadius,
       transform: [{ translateY: translateY.value }],
     };
   });
 
+  const handleMenuPress = (route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(route);
+  };
+
+  const handleLogout = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    signOut();
+  };
+
   return (
-    <PanGestureHandler onGestureEvent={gestureHandler}>
-      <Animated.View style={[styles.bottomSheetContainer, rBottomSheetStyle]}>
-        <View style={styles.line} />
-        <Text style={styles.header}>More Options</Text>
-        
-        <MoreOption
-          icon="person-circle-outline"
-          title="Profile"
-          onPress={() => router.push('/(more)/profile')}
-        />
-        
-        <MoreOption
-          icon="trophy-outline"
-          title="Achievements"
-          onPress={() => router.push('/(more)/achievements')}
-        />
-        
-        <MoreOption
-          icon="settings-outline"
-          title="Settings"
-          onPress={() => router.push('/(more)/settings')}
-        />
-        
-        <MoreOption
-          icon="log-out-outline"
-          title="Logout"
-          onPress={signOut}
-        />
-      </Animated.View>
-    </PanGestureHandler>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <PanGestureHandler onGestureEvent={gestureHandler}>
+        <Animated.View style={[
+          styles.bottomSheet,
+          rBottomSheetStyle,
+          { backgroundColor: theme.modalBackground }
+        ]}>
+          <View style={[styles.line, { backgroundColor: theme.border }]} />
+          <View style={styles.content}>
+            <ThemedText type="title" style={styles.title}>More Options</ThemedText>
+            
+            {menuItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => handleMenuPress(item.route)}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: theme.backgroundDim }]}>
+                  <Ionicons name={item.icon} size={24} color={theme.primary} />
+                </View>
+                <ThemedText style={styles.menuText}>{item.title}</ThemedText>
+                <Ionicons name="chevron-forward" size={24} color={theme.primary} />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={[styles.menuItem, styles.logoutButton]}
+              onPress={handleLogout}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: theme.backgroundDim }]}>
+                <Ionicons name="log-out" size={24} color={theme.error} />
+              </View>
+              <ThemedText style={[styles.menuText, { color: theme.error }]}>Logout</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bottomSheetContainer: {
+  container: {
+    flex: 1,
+  },
+  bottomSheet: {
     height: SCREEN_HEIGHT,
     width: '100%',
-    backgroundColor: '#FFFFFF',
     position: 'absolute',
     top: SCREEN_HEIGHT,
-    borderRadius: 25,
-    zIndex: 1,
-    padding: 16,
-    paddingTop: 12,
-    shadowColor: '#000',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: -2,
     },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowRadius: 10,
     elevation: 5,
   },
   line: {
-    width: 75,
+    width: 40,
     height: 4,
-    backgroundColor: 'rgba(0,0,0,0.2)',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginTop: 8,
     borderRadius: 2,
   },
-  header: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    color: Colors.text.primary,
+  content: {
+    padding: 20,
   },
-  option: {
+  title: {
+    marginBottom: 20,
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
   },
-  optionText: {
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  menuText: {
     flex: 1,
-    marginLeft: 12,
     fontSize: 16,
-    color: Colors.text.primary,
+  },
+  logoutButton: {
+    marginTop: 20,
+    borderBottomWidth: 0,
   },
 }); 

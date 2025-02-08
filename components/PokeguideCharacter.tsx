@@ -1,65 +1,154 @@
-import { Image, StyleSheet, View, ViewStyle } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { View, Image, StyleSheet } from 'react-native';
+import Animated, { 
+  useAnimatedStyle, 
+  withSpring, 
+  withRepeat, 
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
-type PokeguideEmotion = 
-  | 'angry' 
-  | 'announcing' 
-  | 'concerned-asking'
-  | 'confused'
-  | 'curious'
-  | 'explaining'
-  | 'happy-with-football'
-  | 'shouting-in-anger'
-  | 'shouting'
-  | 'thinking';
+type Emotion = 'angry' | 'announcing' | 'concerned-asking' | 'confused' | 'curious' | 'explaining' | 'happy-with-football' | 'shouting-in-anger' | 'shouting' | 'thinking';
 
 interface PokeguideCharacterProps {
-  emotion: PokeguideEmotion;
+  emotion?: Emotion;
   size?: number;
-  style?: ViewStyle;
   animated?: boolean;
+  style?: any;
 }
 
+const emotionImages = {
+  'angry': require('../assets/images/pokeguide/pokeguide-angry.png'),
+  'announcing': require('../assets/images/pokeguide/pokeguide-announcing.png'),
+  'concerned-asking': require('../assets/images/pokeguide/pokeguide-concerned-asking.png'),
+  'confused': require('../assets/images/pokeguide/pokeguide-confused.png'),
+  'curious': require('../assets/images/pokeguide/pokeguide-curious.png'),
+  'explaining': require('../assets/images/pokeguide/pokeguide-explaining.png'),
+  'happy-with-football': require('../assets/images/pokeguide/pokeguide-happy-with-football.png'),
+  'shouting-in-anger': require('../assets/images/pokeguide/pokeguide-shouting-in-anger.png'),
+  'shouting': require('../assets/images/pokeguide/pokeguide-shouting.png'),
+  'thinking': require('../assets/images/pokeguide/pokeguide-thinking.png'),
+} as const;
+
 export function PokeguideCharacter({ 
-  emotion, 
-  size = 80,
+  emotion = 'happy-with-football', 
+  size = 120,
+  animated = true,
   style,
-  animated = true 
 }: PokeguideCharacterProps) {
-  const Container = animated ? Animated.View : View;
+  const animatedStyle = useAnimatedStyle(() => {
+    if (!animated) return {};
+
+    switch (emotion) {
+      case 'happy-with-football':
+        return {
+          transform: [
+            {
+              rotate: withRepeat(
+                withSequence(
+                  withTiming('-5deg', { duration: 500 }),
+                  withTiming('5deg', { duration: 500 }),
+                ),
+                -1,
+                true
+              ),
+            },
+          ],
+        };
+      case 'thinking':
+        return {
+          transform: [
+            {
+              translateY: withRepeat(
+                withSequence(
+                  withSpring(-5),
+                  withSpring(5),
+                ),
+                -1,
+                true
+              ),
+            },
+          ],
+        };
+      case 'announcing':
+        return {
+          transform: [
+            {
+              scale: withRepeat(
+                withSequence(
+                  withSpring(1.1),
+                  withSpring(1),
+                ),
+                -1,
+                true
+              ),
+            },
+          ],
+        };
+      case 'explaining':
+        return {
+          transform: [
+            {
+              translateX: withRepeat(
+                withSequence(
+                  withSpring(-5),
+                  withSpring(5),
+                ),
+                -1,
+                true
+              ),
+            },
+          ],
+        };
+      case 'concerned-asking':
+        return {
+          transform: [
+            {
+              scale: withRepeat(
+                withSequence(
+                  withSpring(1.2),
+                  withSpring(1),
+                ),
+                3,
+                true
+              ),
+            },
+          ],
+        };
+      case 'angry':
+        return {
+          transform: [
+            {
+              rotate: withRepeat(
+                withSequence(
+                  withTiming('360deg', { duration: 1000 }),
+                ),
+                3,
+                false
+              ),
+            },
+          ],
+        };
+      default:
+        return {};
+    }
+  });
 
   return (
-    <Container 
-      style={[styles.container, style]}
-      entering={animated ? FadeInDown.springify().delay(300) : undefined}
-    >
-      <Image
-        source={getPokeguideImage(emotion)}
+    <View style={[styles.container, style]}>
+      <Animated.Image
+        source={emotionImages[emotion]}
         style={[
           {
             width: size,
             height: size,
           },
-          styles.image
+          styles.image,
+          animatedStyle,
         ]}
+        resizeMode="contain"
       />
-    </Container>
+    </View>
   );
-}
-
-function getPokeguideImage(emotion: PokeguideEmotion) {
-  return {
-    'angry': require('@/assets/images/pokeguide/pokeguide-angry.png'),
-    'announcing': require('@/assets/images/pokeguide/pokeguide-announcing.png'),
-    'concerned-asking': require('@/assets/images/pokeguide/pokeguide-concerned-asking.png'),
-    'confused': require('@/assets/images/pokeguide/pokeguide-confused.png'),
-    'curious': require('@/assets/images/pokeguide/pokeguide-curious.png'),
-    'explaining': require('@/assets/images/pokeguide/pokeguide-explaining.png'),
-    'happy-with-football': require('@/assets/images/pokeguide/pokeguide-happy-with-football.png'),
-    'shouting-in-anger': require('@/assets/images/pokeguide/pokeguide-shouting-in-anger.png'),
-    'shouting': require('@/assets/images/pokeguide/pokeguide-shouting.png'),
-    'thinking': require('@/assets/images/pokeguide/pokeguide-thinking.png'),
-  }[emotion];
 }
 
 const styles = StyleSheet.create({
@@ -68,6 +157,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   image: {
-    resizeMode: 'contain',
+    width: 120,
+    height: 120,
   },
 }); 

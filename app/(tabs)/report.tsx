@@ -87,7 +87,7 @@ export default function ReportScreen() {
   return (
     <ScrollView style={styles.container}>
       <LinearGradient
-        colors={[Colors.primary, Colors.light.warning]}
+        colors={['#FF5D00', '#FFB900']}
         style={styles.header}
       >
         <ThemedText style={styles.headerTitle}>Report an Issue</ThemedText>
@@ -187,7 +187,7 @@ export default function ReportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.light,
+    backgroundColor: '#FFFFFF',
   },
   header: {
     padding: 24,

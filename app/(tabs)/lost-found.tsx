@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View, ScrollView, Text } from 'react-native';
+import { StyleSheet, View, ScrollView, Text, useColorScheme } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
@@ -10,6 +10,8 @@ import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 
 export default function LostFoundScreen() {
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
 
   return (
     <View style={styles.container}>
@@ -33,7 +35,7 @@ export default function LostFoundScreen() {
           variant={activeTab === 'lost' ? 'default' : 'outline'}
           style={styles.tabButton}
         >
-          <Ionicons name="search-outline" size={20} color={activeTab === 'lost' ? '#FFFFFF' : Colors.text.primary} />
+          <Ionicons name="search-outline" size={20} color={activeTab === 'lost' ? '#FFFFFF' : theme.text} />
           <ThemedText>Lost Items</ThemedText>
         </Button>
         <Button
@@ -41,7 +43,7 @@ export default function LostFoundScreen() {
           variant={activeTab === 'found' ? 'default' : 'outline'}
           style={styles.tabButton}
         >
-          <Ionicons name="checkmark-circle-outline" size={20} color={activeTab === 'found' ? '#FFFFFF' : Colors.text.primary} />
+          <Ionicons name="checkmark-circle-outline" size={20} color={activeTab === 'found' ? '#FFFFFF' : theme.text} />
           <ThemedText>Found Items</ThemedText>
         </Button>
       </View>
@@ -54,7 +56,7 @@ export default function LostFoundScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.light,
+    backgroundColor: Colors.light.background,
   },
   header: {
     padding: 24,
