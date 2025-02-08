@@ -15,6 +15,40 @@ import { Button } from '@/components/ui/Button';
 import * as ImagePicker from 'expo-image-picker';
 import { TextInput } from '@/components/ui/TextInput';
 
+const getBadgeImage = (badgeName: string) => {
+  switch (badgeName) {
+    case 'Novice Trainer':
+      return require('@/assets/images/badges/Novice Trainer.png');
+    case 'Issue Scout':
+      return require('@/assets/images/badges/Issue Scout.png');
+    case 'Community Guardian':
+      return require('@/assets/images/badges/Community Guardian.png');
+    case 'District Champion':
+      return require('@/assets/images/badges/District Champion.png');
+    case 'Elite PokeRanger':
+      return require('@/assets/images/badges/Elite PokeRanger.png');
+    default:
+      return require('@/assets/images/badges/Novice Trainer.png'); // Default fallback
+  }
+};
+
+const getActivityIcon = (activityType: string) => {
+  switch (activityType) {
+    case 'city':
+      return 'business';
+    case 'security':
+      return 'shield-checkmark';
+    case 'tree':
+      return 'leaf';
+    case 'recycle':
+      return 'refresh-circle';
+    case 'building':
+      return 'home';
+    default:
+      return 'star'; // Default icon
+  }
+};
+
 export default function ProfileScreen() {
   const { user } = useAuth();
   const colorScheme = useColorScheme();
@@ -164,13 +198,7 @@ export default function ProfileScreen() {
         {getHighestBadge(profile.badges) && (
           <Card style={styles.statCard}>
             <Image 
-              source={
-                getHighestBadge(profile.badges).name === 'Novice Trainer' ? require('@/assets/images/badges/Novice Trainer.png') :
-                getHighestBadge(profile.badges).name === 'Issue Scout' ? require('@/assets/images/badges/Issue Scout.png') :
-                getHighestBadge(profile.badges).name === 'Community Guardian' ? require('@/assets/images/badges/Community Guardian.png') :
-                getHighestBadge(profile.badges).name === 'District Champion' ? require('@/assets/images/badges/District Champion.png') :
-                require('@/assets/images/badges/Elite PokeRanger.png')
-              }
+              source={getBadgeImage(getHighestBadge(profile.badges).name)}
               style={styles.badgeImage}
             />
             <ThemedText type="title" style={[styles.statValue, styles.badgeTitle]}>
@@ -228,13 +256,7 @@ export default function ProfileScreen() {
               !badge.unlocked && styles.lockedBadge
             ]}>
               <Image 
-                source={
-                  badge.name === 'Novice Trainer' ? require('@/assets/images/badges/Novice Trainer.png') :
-                  badge.name === 'Issue Scout' ? require('@/assets/images/badges/Issue Scout.png') :
-                  badge.name === 'Community Guardian' ? require('@/assets/images/badges/Community Guardian.png') :
-                  badge.name === 'District Champion' ? require('@/assets/images/badges/District Champion.png') :
-                  require('@/assets/images/badges/Elite PokeRanger.png')
-                }
+                source={getBadgeImage(badge.name)}
                 style={[
                   styles.badgeCardImage,
                   !badge.unlocked && styles.lockedBadgeImage
@@ -253,7 +275,7 @@ export default function ProfileScreen() {
         <ThemedText type="title" style={styles.sectionTitle}>Recent Activity</ThemedText>
         {profile.recent_activity.map((activity) => (
           <Card key={activity.id} style={styles.activityCard}>
-            <Ionicons name={activity.icon as any} size={24} color={theme.primary} />
+            <Ionicons name={getActivityIcon(activity.icon)} size={24} color={theme.primary} />
             <View style={styles.activityInfo}>
               <ThemedText style={styles.activityTitle}>{activity.title}</ThemedText>
               <ThemedText style={styles.activityDate}>

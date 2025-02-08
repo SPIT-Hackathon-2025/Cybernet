@@ -1,14 +1,5 @@
-<<<<<<< HEAD
-import { useState } from 'react';
-<<<<<<< HEAD
-import { StyleSheet, View, ScrollView, Text, useColorScheme } from 'react-native';
-=======
-import { StyleSheet, View, ScrollView, Text, FlatList, TouchableOpacity } from 'react-native';
-=======
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Modal, Alert, Image } from 'react-native';
->>>>>>> c906ae5 (updated routing, implementing individual pages)
->>>>>>> origin/lostNfound
+import { StyleSheet, View, ScrollView, Modal, Alert, Image, useColorScheme, TouchableOpacity, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,80 +9,18 @@ import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/TextInput';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
-<<<<<<< HEAD
-import { PokeguideCharacter } from '@/components/PokeguideCharacter';
-import { router } from 'expo-router';
-
-// Add type for the mock data
-interface LostFoundItem {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  date: string;
-  status: 'lost' | 'found';
-  category: string;
-  photos: string[];
-}
-
-const MOCK_ITEMS: LostFoundItem[] = [
-  {
-    id: '1',
-    title: 'Blue Backpack',
-    description: 'Found near the central park entrance',
-    location: 'Central Park',
-    date: '2024-03-15',
-    status: 'lost',
-    category: 'Bags',
-    photos: ['https://example.com/photo1.jpg'],
-  },
-  {
-    id: '2',
-    title: 'Blue Backpack',
-    description: 'Found near the central park entrance',
-    location: 'Central Park',
-    date: '2024-03-15',
-    status: 'lost',
-    category: 'Bags',
-    photos: ['https://example.com/photo1.jpg'],
-  },
-  {
-    id: '3',
-    title: 'Blue Backpack',
-    description: 'Found near the central park entrance',
-    location: 'Central Park',
-    date: '2024-03-15',
-    status: 'lost',
-    category: 'Bags',
-    photos: ['https://example.com/photo1.jpg'],
-  },
-  {
-    id: '4',
-    title: 'Blue Backpack',
-    description: 'Found near the central park entrance',
-    location: 'Central Park',
-    date: '2024-03-15',
-    status: 'lost',
-    category: 'Bags',
-    photos: ['https://example.com/photo1.jpg'],
-  },
-  // Add more mock items...
-];
-=======
 import { useAuth } from '@/contexts/AuthContext';
 import { FAB } from '@/components/ui/FAB';
 import { venueService } from '@/services/venueService';
 import { lostItemService } from '@/services/lostItemService';
 import { supabase } from '@/lib/supabase';
->>>>>>> c906ae5 (updated routing, implementing individual pages)
+import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 
 export default function LostFoundScreen() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
-<<<<<<< HEAD
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
-=======
+  const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [lostItems, setLostItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,6 +34,17 @@ export default function LostFoundScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [nearbyVenues, setNearbyVenues] = useState<any[]>([]);
+
+  const itemTypes = [
+    'Electronics',
+    'Accessories',
+    'Clothing',
+    'Documents',
+    'Keys',
+    'Wallet',
+    'Bag',
+    'Other'
+  ];
 
   useEffect(() => {
     loadLostItems();
@@ -181,31 +121,67 @@ export default function LostFoundScreen() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!title || !description || !selectedVenue || !email || !phone) {
-      Alert.alert('Missing fields', 'Please fill in all required fields');
-      return;
+  const validateForm = () => {
+    const errors = [];
+    if (!title.trim()) errors.push('Title is required');
+    if (!description.trim()) errors.push('Description is required');
+    if (!itemType) errors.push('Item type is required');
+    if (!selectedVenue) errors.push('Location is required');
+    if (!email.trim()) errors.push('Contact email is required');
+    if (!phone.trim()) errors.push('Contact phone is required');
+    
+    if (errors.length > 0) {
+      Alert.alert('Missing Information', errors.join('\n'));
+      return false;
     }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return false;
+    }
+
+    // Validate phone format (basic check)
+    const phoneRegex = /^\+?[\d\s-]{8,}$/;
+    if (!phoneRegex.test(phone)) {
+      Alert.alert('Invalid Phone', 'Please enter a valid phone number');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
     try {
       setLoading(true);
-      await lostItemService.createLostItem({
-        title,
-        description,
-        venue_id: selectedVenue.id,
+      const newLostItem = {
+        title: title.trim(),
+        description: description.trim(),
+        item_type: itemType,
+        location: {
+          latitude: selectedVenue.latitude,
+          longitude: selectedVenue.longitude
+        },
         reporter_id: user!.id,
         photos,
-        item_type: itemType,
-        contact_info: { email, phone }
-      });
+        contact_info: {
+          email: email.trim(),
+          phone: phone.trim()
+        },
+        status: 'open'
+      };
 
+      await lostItemService.createLostItem(newLostItem);
       setIsModalVisible(false);
       resetForm();
       loadLostItems();
       Alert.alert('Success', 'Lost item reported successfully');
     } catch (error) {
       console.error('Error reporting lost item:', error);
-      Alert.alert('Error', 'Failed to report lost item');
+      Alert.alert('Error', 'Failed to report lost item. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -221,120 +197,105 @@ export default function LostFoundScreen() {
     setPhone('');
   };
 
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <PokeguideCharacter 
+        emotion="thinking"
+        size={120}
+        style={styles.emptyStateGuide}
+      />
+      <ThemedText type="title" style={styles.emptyTitle}>
+        No {activeTab === 'lost' ? 'Lost' : 'Found'} Items Yet
+      </ThemedText>
+      <ThemedText style={styles.emptyDescription} dimmed>
+        {activeTab === 'lost' 
+          ? "Don't worry! We'll help you find your lost items. Tap the + button to report a lost item."
+          : "Be a hero! Help others find their lost items by reporting what you've found."}
+      </ThemedText>
+    </View>
+  );
+
   const renderLostItem = (item: any) => (
     <Card key={item.id} style={styles.itemCard}>
-      {item.photos?.[0] && (
-        <Image 
-          source={{ uri: item.photos[0] }} 
-          style={styles.itemImage}
-        />
-      )}
-      <View style={styles.itemContent}>
-        <ThemedText type="title">{item.title}</ThemedText>
-        <ThemedText>{item.description}</ThemedText>
-        <ThemedText style={styles.itemMeta}>
-          Posted by {item.reporter?.username} at {item.venue?.name}
-        </ThemedText>
+      <View style={styles.itemHeader}>
+        <View style={styles.itemInfo}>
+          <ThemedText type="subtitle" style={styles.itemTitle}>{item.title}</ThemedText>
+          <ThemedText style={styles.itemMeta} dimmed>
+            {new Date(item.created_at).toLocaleDateString()}
+          </ThemedText>
+        </View>
+        {item.photos?.[0] && (
+          <Image 
+            source={{ uri: item.photos[0] }} 
+            style={styles.itemThumbnail}
+          />
+        )}
+      </View>
+      <ThemedText numberOfLines={2} style={styles.itemDescription} dimmed>
+        {item.description}
+      </ThemedText>
+      <View style={styles.itemFooter}>
+        <View style={styles.itemTags}>
+          <View style={[styles.tag, { backgroundColor: theme.backgroundDim }]}>
+            <Ionicons name="pricetag" size={14} color={theme.primary} />
+            <ThemedText style={styles.tagText}>{item.item_type || 'Other'}</ThemedText>
+          </View>
+          <View style={[styles.tag, { backgroundColor: theme.backgroundDim }]}>
+            <Ionicons name="location" size={14} color={theme.primary} />
+            <ThemedText style={styles.tagText} numberOfLines={1}>
+              {item.venue?.name || 'Location pending'}
+            </ThemedText>
+          </View>
+        </View>
+        <Button variant="ghost" size="small" onPress={() => {}}>
+          View Details
+        </Button>
       </View>
     </Card>
   );
 
-  const renderItem = ({ item }: { item: LostFoundItem }) => (
-    <TouchableOpacity 
-      onPress={() => router.push(`/item/${item.id}`)}
-      activeOpacity={0.7}
-    >
-      <Card style={[styles.itemCard, styles.whiteBackground]}>
-        <View style={styles.itemHeader}>
-          <View style={styles.itemTitleContainer}>
-            <ThemedText style={styles.itemTitle}>{item.title}</ThemedText>
-            <View style={styles.categoryBadge}>
-              <ThemedText style={styles.categoryText}>{item.category}</ThemedText>
-            </View>
-          </View>
-          <Ionicons 
-            name="chevron-forward" 
-            size={20} 
-            color={Colors.text.secondary}
-          />
-        </View>
-        
-        <ThemedText style={styles.itemDescription} numberOfLines={2}>
-          {item.description}
-        </ThemedText>
-        
-        <View style={styles.itemFooter}>
-          <View style={styles.locationContainer}>
-            <Ionicons name="location-outline" size={16} color={Colors.text.secondary} />
-            <ThemedText style={styles.locationText}>{item.location}</ThemedText>
-          </View>
-          <ThemedText style={styles.dateText}>
-            {new Date(item.date).toLocaleDateString()}
-          </ThemedText>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
->>>>>>> origin/lostNfound
-
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.modalBackground }]}>
       <LinearGradient
-        colors={[Colors.primary, Colors.secondary]}
+        colors={[theme.primary, theme.secondary]}
         style={styles.header}
       >
         <View style={styles.headerContent}>
           <PokeguideCharacter 
             emotion="concerned-asking" 
-            size={80}
+            size={60}
             style={styles.guideCharacter}
           />
-          <ThemedText style={styles.headerTitle}>
-            Lost & Found Network
-          </ThemedText>
-          <ThemedText style={styles.headerSubtitle}>
-            Connecting lost items with their owners
-          </ThemedText>
+          <View style={styles.headerText}>
+            <ThemedText style={[styles.headerTitle, { color: theme.modalBackground }]}>
+              Lost & Found Network
+            </ThemedText>
+            <ThemedText style={[styles.headerSubtitle, { color: theme.modalBackground }]}>
+              Connecting lost items with their owners
+            </ThemedText>
+          </View>
         </View>
       </LinearGradient>
 
       <View style={styles.tabContainer}>
-<<<<<<< HEAD
-        <Button 
-          onPress={() => setActiveTab('lost')}
-          variant={activeTab === 'lost' ? 'default' : 'outline'}
-          style={styles.tabButton}
-        >
-          <Ionicons name="search-outline" size={20} color={activeTab === 'lost' ? '#FFFFFF' : theme.text} />
-          <ThemedText>Lost Items</ThemedText>
-        </Button>
-        <Button
-          onPress={() => setActiveTab('found')}
-          variant={activeTab === 'found' ? 'default' : 'outline'}
-          style={styles.tabButton}
-        >
-          <Ionicons name="checkmark-circle-outline" size={20} color={activeTab === 'found' ? '#FFFFFF' : theme.text} />
-          <ThemedText>Found Items</ThemedText>
-        </Button>
-=======
-        <View style={styles.tabWrapper}>
+        <View style={[styles.tabWrapper, { backgroundColor: theme.modalBackground }]}>
           <Button 
             onPress={() => setActiveTab('lost')}
             variant={activeTab === 'lost' ? 'default' : 'ghost'}
             style={[
               styles.tabButton,
-              activeTab === 'lost' && styles.activeTabButton
+              activeTab === 'lost' && { backgroundColor: theme.primary }
             ]}
           >
             <View style={styles.tabContent}>
               <Ionicons 
                 name="search-outline" 
-                size={20} 
-                color={activeTab === 'lost' ? Colors.background.light : Colors.text.primary} 
+                size={18} 
+                color={activeTab === 'lost' ? theme.modalBackground : theme.text} 
               />
               <ThemedText style={[
                 styles.tabText,
-                activeTab === 'lost' && styles.activeTabText
+                activeTab === 'lost' && { color: theme.modalBackground }
               ]}>
                 Lost Items
               </ThemedText>
@@ -345,61 +306,32 @@ export default function LostFoundScreen() {
             variant={activeTab === 'found' ? 'default' : 'ghost'}
             style={[
               styles.tabButton,
-              activeTab === 'found' && styles.activeTabButton
+              activeTab === 'found' && { backgroundColor: theme.primary }
             ]}
           >
             <View style={styles.tabContent}>
               <Ionicons 
                 name="checkmark-circle-outline" 
-                size={20} 
-                color={activeTab === 'found' ? Colors.background.light : Colors.text.primary} 
+                size={18} 
+                color={activeTab === 'found' ? theme.modalBackground : theme.text} 
               />
               <ThemedText style={[
                 styles.tabText,
-                activeTab === 'found' && styles.activeTabText
+                activeTab === 'found' && { color: theme.modalBackground }
               ]}>
                 Found Items
               </ThemedText>
             </View>
           </Button>
         </View>
->>>>>>> origin/lostNfound
       </View>
 
-<<<<<<< HEAD
-      <FlatList
-        data={MOCK_ITEMS.filter(item => item.status === activeTab)}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <PokeguideCharacter
-              emotion="thinking"
-              size={80}
-              style={styles.emptyStateGuide}
-            />
-            <ThemedText style={styles.emptyStateText}>
-              No {activeTab} items reported yet
-            </ThemedText>
-          </View>
-        }
-      />
-
-      <Button
-        style={styles.fab}
-        onPress={() => router.push('/item/new')}
-      >
-        <View style={styles.fabContent}>
-          <Ionicons name="add" size={24} color="#FFFFFF" />
-          <ThemedText style={styles.fabText}>
-            Report {activeTab === 'lost' ? 'Lost' : 'Found'} Item
-          </ThemedText>
-        </View>
-      </Button>
-=======
       <ScrollView style={styles.content}>
-        {lostItems.map(renderLostItem)}
+        {lostItems.length > 0 ? (
+          lostItems.map(renderLostItem)
+        ) : (
+          renderEmptyState()
+        )}
       </ScrollView>
 
       <FAB 
@@ -411,100 +343,174 @@ export default function LostFoundScreen() {
       <Modal
         visible={isModalVisible}
         animationType="slide"
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={() => {
+          if (loading) return;
+          setIsModalVisible(false);
+          resetForm();
+        }}
+        statusBarTranslucent
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
             <ThemedText type="title">Report Lost Item</ThemedText>
             <Button
               variant="ghost"
-              onPress={() => setIsModalVisible(false)}
+              onPress={() => {
+                if (loading) return;
+                setIsModalVisible(false);
+                resetForm();
+              }}
             >
-              <Ionicons name="close" size={24} />
+              <Ionicons name="close" size={24} color={theme.text} />
             </Button>
           </View>
 
-          <ScrollView style={styles.modalContent}>
-            <TextInput
-              label="Title"
-              value={title}
-              onChangeText={setTitle}
-              placeholder="What did you lose?"
-            />
+          <ScrollView 
+            style={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <Card style={styles.formSection}>
+              <ThemedText type="subtitle" style={styles.sectionTitle}>Basic Information</ThemedText>
+              <TextInput
+                label="Title *"
+                value={title}
+                onChangeText={setTitle}
+                placeholder="What did you lose? (e.g., Blue Nike Backpack)"
+                maxLength={100}
+              />
 
-            <TextInput
-              label="Description"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-              placeholder="Describe the item..."
-            />
+              <TextInput
+                label="Description *"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                placeholder="Provide detailed description including color, brand, distinguishing features..."
+                maxLength={500}
+                style={styles.textArea}
+              />
 
-            <TextInput
-              label="Item Type"
-              value={itemType}
-              onChangeText={setItemType}
-              placeholder="e.g., Electronics, Clothing, etc."
-            />
+              <View style={styles.itemTypeSection}>
+                <ThemedText style={styles.label}>Item Type *</ThemedText>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.itemTypeScroll}
+                >
+                  {itemTypes.map((type) => (
+                    <Button
+                      key={type}
+                      variant={itemType === type ? 'default' : 'outline'}
+                      size="small"
+                      style={styles.itemTypeButton}
+                      onPress={() => setItemType(type)}
+                    >
+                      {type}
+                    </Button>
+                  ))}
+                </ScrollView>
+              </View>
+            </Card>
 
-            <View style={styles.photoSection}>
-              <ThemedText type="subtitle">Photos ({photos.length}/3)</ThemedText>
-              <Button onPress={pickImage}>
-                <Ionicons name="camera" size={20} />
-                <ThemedText>Add Photo</ThemedText>
-              </Button>
-              <View style={styles.photoPreview}>
-                {photos.map((photo, index) => (
-                  <Image 
+            <Card style={styles.formSection}>
+              <ThemedText type="subtitle" style={styles.sectionTitle}>Photos</ThemedText>
+              <ThemedText style={styles.helperText} dimmed>
+                Add up to 3 clear photos of your item to help others identify it
+              </ThemedText>
+              <View style={styles.photoGrid}>
+                {[0, 1, 2].map((index) => (
+                  <TouchableOpacity
                     key={index}
-                    source={{ uri: photo }}
-                    style={styles.previewImage}
-                  />
+                    style={[
+                      styles.photoSlot,
+                      { backgroundColor: theme.backgroundDim }
+                    ]}
+                    onPress={photos.length > index ? undefined : pickImage}
+                  >
+                    {photos[index] ? (
+                      <>
+                        <Image 
+                          source={{ uri: photos[index] }}
+                          style={styles.previewImage}
+                        />
+                        <TouchableOpacity
+                          style={styles.removePhoto}
+                          onPress={() => setPhotos(photos.filter((_, i) => i !== index))}
+                        >
+                          <Ionicons name="close-circle" size={24} color={theme.error} />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View style={styles.addPhotoPlaceholder}>
+                        <Ionicons name="camera" size={24} color={theme.textDim} />
+                        <ThemedText style={styles.addPhotoText} dimmed>
+                          Add Photo
+                        </ThemedText>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </Card>
 
-            <View style={styles.venueSection}>
-              <ThemedText type="subtitle">Last Seen Location</ThemedText>
-              {nearbyVenues.map(venue => (
-                <Button
-                  key={venue.id}
-                  variant={selectedVenue?.id === venue.id ? 'default' : 'outline'}
-                  onPress={() => setSelectedVenue(venue)}
-                >
-                  <ThemedText>{venue.name}</ThemedText>
-                </Button>
-              ))}
-            </View>
+            <Card style={styles.formSection}>
+              <ThemedText type="subtitle" style={styles.sectionTitle}>Location *</ThemedText>
+              <ThemedText style={styles.helperText} dimmed>
+                Select the location where you last saw the item
+              </ThemedText>
+              <View style={styles.venueList}>
+                {nearbyVenues.map(venue => (
+                  <Button
+                    key={venue.id}
+                    variant={selectedVenue?.id === venue.id ? 'default' : 'outline'}
+                    style={styles.venueButton}
+                    onPress={() => setSelectedVenue(venue)}
+                  >
+                    <Ionicons 
+                      name="location" 
+                      size={16} 
+                      color={selectedVenue?.id === venue.id ? theme.modalBackground : theme.primary} 
+                    />
+                    <ThemedText style={selectedVenue?.id === venue.id ? { color: theme.modalBackground } : undefined}>
+                      {venue.name}
+                    </ThemedText>
+                  </Button>
+                ))}
+              </View>
+            </Card>
 
-            <TextInput
-              label="Contact Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              placeholder="Your contact email"
-            />
+            <Card style={styles.formSection}>
+              <ThemedText type="subtitle" style={styles.sectionTitle}>Contact Information</ThemedText>
+              <TextInput
+                label="Email *"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                placeholder="your.email@example.com"
+                autoCapitalize="none"
+              />
 
-            <TextInput
-              label="Contact Phone"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              placeholder="Your contact phone"
-            />
+              <TextInput
+                label="Phone *"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                placeholder="+1234567890"
+              />
+            </Card>
 
             <Button
               onPress={handleSubmit}
               loading={loading}
+              disabled={loading}
               style={styles.submitButton}
             >
-              Report Lost Item
+              Submit Report
             </Button>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
->>>>>>> c906ae5 (updated routing, implementing individual pages)
     </View>
   );
 }
@@ -512,52 +518,43 @@ export default function LostFoundScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
   },
   header: {
-    padding: 24,
-    paddingTop: 70,
-    height: 280,
+    padding: 16,
+    paddingTop: 60,
+    height: 160,
   },
   headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 0,
+    gap: 12,
+  },
+  headerText: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: Colors.background.light,
     marginBottom: 2,
-    textAlign: 'center',
-    includeFontPadding: false,
-    marginTop: 30,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: Colors.background.light,
-    opacity: 1,
-    textAlign: 'center',
-    includeFontPadding: false,
+    fontSize: 14,
+    opacity: 0.9,
   },
   guideCharacter: {
-    position: 'absolute',
-    top: -60,
-    zIndex: 1,
+    marginTop: -20,
   },
   tabContainer: {
-    padding: 16,
-    marginTop: -100,
+    padding: 12,
+    marginTop: -40,
     zIndex: 2,
-    marginBottom: 8,
   },
   tabWrapper: {
     flexDirection: 'row',
-    backgroundColor: Colors.background.light,
     borderRadius: 12,
     padding: 4,
     gap: 4,
-    shadowColor: Colors.text.primary,
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -568,70 +565,49 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 8,
-  },
-  activeTabButton: {
-    backgroundColor: Colors.primary,
   },
   tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    color: Colors.text.primary,
   },
-  activeTabText: {
-    color: Colors.background.light,
-    fontWeight: '600',
-  },
-  listContainer: {
-    padding: 16,
-    paddingBottom: 100, // Space for FAB
+  content: {
+    flex: 1,
+    padding: 12,
   },
   itemCard: {
     marginBottom: 12,
-    padding: 16,
-  },
-  whiteBackground: {
-    backgroundColor: '#FFFFFF',
-    borderColor: Colors.border.light,
-    borderWidth: 1,
+    padding: 12,
   },
   itemHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 12,
     marginBottom: 8,
   },
-  itemTitleContainer: {
+  itemInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
-<<<<<<< HEAD
   itemTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    marginBottom: 2,
   },
-  categoryBadge: {
-    backgroundColor: Colors.light.accent,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryText: {
+  itemMeta: {
     fontSize: 12,
-    color: Colors.text.primary,
+  },
+  itemThumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
   },
   itemDescription: {
     fontSize: 14,
-    color: Colors.text.secondary,
     marginBottom: 12,
   },
   itemFooter: {
@@ -639,69 +615,50 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  locationContainer: {
+  itemTags: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap:16, // Add gap between icon containers
+    gap: 8,
+    flex: 1,
   },
-  iconContainer: {
+  tag: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     gap: 4,
   },
-  icon: {
-    marginRight: 4,
-  },
-  locationText: {
+  tagText: {
     fontSize: 12,
-    color: Colors.text.secondary,
-  },
-  dateText: {
-    fontSize: 12,
-    color: Colors.text.secondary,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emptyStateGuide: {
-    marginBottom: 16,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: Colors.text.secondary,
-    textAlign: 'center',
-=======
-  content: {
-    flex: 1,
-    padding: 16,
->>>>>>> c906ae5 (updated routing, implementing individual pages)
   },
   fab: {
     position: 'absolute',
     bottom: 24,
     right: 24,
-<<<<<<< HEAD
-    left: 24,
-    backgroundColor: Colors.primary,
-    borderRadius: 30,
-    paddingVertical: 16,
   },
-  fabContent: {
-    flexDirection: 'row',
+  emptyContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    padding: 24,
+    marginTop: 40,
   },
-  fabText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-=======
+  emptyStateGuide: {
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.background.light,
+    zIndex: 1000,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -709,47 +666,90 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
+    backgroundColor: 'transparent',
   },
   modalContent: {
+    flex: 1,
     padding: 16,
   },
-  photoSection: {
-    marginVertical: 16,
+  formSection: {
+    marginBottom: 16,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
-  photoPreview: {
+  sectionTitle: {
+    marginBottom: 12,
+  },
+  helperText: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
+  itemTypeSection: {
+    marginTop: 16,
+  },
+  itemTypeScroll: {
+    marginTop: 8,
+  },
+  itemTypeButton: {
+    marginRight: 8,
+  },
+  photoGrid: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,
   },
-  previewImage: {
-    width: 100,
-    height: 100,
+  photoSlot: {
+    flex: 1,
+    aspectRatio: 1,
     borderRadius: 8,
+    overflow: 'hidden',
   },
-  venueSection: {
-    marginVertical: 16,
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  removePhoto: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  addPhotoPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addPhotoText: {
+    fontSize: 12,
+  },
+  venueList: {
     gap: 8,
+  },
+  venueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   submitButton: {
-    marginTop: 24,
-    marginBottom: 40,
-  },
-  itemCard: {
-    marginBottom: 16,
-  },
-  itemImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  itemContent: {
-    gap: 8,
-  },
-  itemMeta: {
-    fontSize: 12,
-    opacity: 0.7,
->>>>>>> c906ae5 (updated routing, implementing individual pages)
+    marginVertical: 24,
   },
 }); 

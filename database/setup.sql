@@ -14,6 +14,7 @@ DROP FUNCTION IF EXISTS increment_coins CASCADE;
 DROP FUNCTION IF EXISTS get_full_profile CASCADE;
 DROP FUNCTION IF EXISTS update_user_rank CASCADE;
 DROP FUNCTION IF EXISTS get_issues_in_bounds CASCADE;
+DROP FUNCTION IF EXISTS get_nearby_verified_venues CASCADE;
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -78,6 +79,17 @@ CREATE TABLE point_transactions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE venues (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name TEXT NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    address TEXT,
+    is_verified BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE issues (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     title TEXT NOT NULL,
@@ -99,6 +111,96 @@ CREATE TABLE issue_verifications (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(issue_id, verifier_id)
 );
+
+CREATE TABLE lost_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    item_type TEXT,
+    location GEOMETRY(Point, 4326),
+    reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    photos TEXT[],
+    contact_info JSONB NOT NULL,
+    status TEXT DEFAULT 'open',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create indexes for better query performance
+CREATE INDEX venues_location_idx ON venues USING gist (ST_SetSRID(ST_Point(longitude, latitude), 4326));
+CREATE INDEX lost_items_location_idx ON lost_items USING gist (location);
+CREATE INDEX lost_items_status_idx ON lost_items(status);
+
+-- Enable RLS on all tables
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE point_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE issue_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE venues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lost_items ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "Users can view any profile" ON user_profiles
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Users can update own profile" ON user_profiles
+    FOR UPDATE TO authenticated
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can insert own profile" ON user_profiles
+    FOR INSERT TO authenticated
+    WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Anyone can view achievements" ON achievements
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Users can view own achievements" ON user_achievements
+    FOR SELECT TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own achievements" ON user_achievements
+    FOR ALL TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own quests" ON quests
+    FOR SELECT TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own quests" ON quests
+    FOR ALL TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own transactions" ON point_transactions
+    FOR SELECT TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view all issues" ON issues
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Users can manage own issues" ON issues
+    FOR ALL TO authenticated
+    USING (auth.uid() = reporter_id);
+
+CREATE POLICY "Anyone can view venues" ON venues
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Authenticated users can create venues" ON venues
+    FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Anyone can view lost items" ON lost_items
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Users can create lost items" ON lost_items
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = reporter_id);
+
+CREATE POLICY "Users can update own lost items" ON lost_items
+    FOR UPDATE TO authenticated
+    USING (auth.uid() = reporter_id)
+    WITH CHECK (auth.uid() = reporter_id);
 
 -- Create helper functions
 CREATE OR REPLACE FUNCTION get_issues_in_bounds(
@@ -208,6 +310,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION get_nearby_verified_venues(
+    lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION,
+    radius_meters INTEGER DEFAULT 1000
+) RETURNS SETOF venues AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM venues
+    WHERE is_verified = true
+    AND ST_DWithin(
+        ST_SetSRID(ST_Point(longitude, latitude), 4326),
+        ST_SetSRID(ST_Point(lng, lat), 4326),
+        radius_meters
+    )
+    ORDER BY ST_Distance(
+        ST_SetSRID(ST_Point(longitude, latitude), 4326),
+        ST_SetSRID(ST_Point(lng, lat), 4326)
+    );
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create update_user_rank function
 CREATE OR REPLACE FUNCTION update_user_rank()
 RETURNS TRIGGER AS $$
@@ -231,58 +355,6 @@ CREATE TRIGGER update_user_rank_trigger
     AFTER UPDATE OF civic_coins ON user_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_user_rank();
-
--- Enable RLS on all tables
-ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE point_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
-ALTER TABLE issue_verifications ENABLE ROW LEVEL SECURITY;
-
--- Create RLS policies
-CREATE POLICY "Users can view any profile" ON user_profiles
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Users can update own profile" ON user_profiles
-    FOR UPDATE TO authenticated
-    USING (auth.uid() = id)
-    WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can insert own profile" ON user_profiles
-    FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Anyone can view achievements" ON achievements
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Users can view own achievements" ON user_achievements
-    FOR SELECT TO authenticated
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own achievements" ON user_achievements
-    FOR ALL TO authenticated
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view own quests" ON quests
-    FOR SELECT TO authenticated
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can manage own quests" ON quests
-    FOR ALL TO authenticated
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view own transactions" ON point_transactions
-    FOR SELECT TO authenticated
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can view all issues" ON issues
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Users can manage own issues" ON issues
-    FOR ALL TO authenticated
-    USING (auth.uid() = reporter_id);
 
 -- Insert default achievements
 INSERT INTO achievements (name, description, icon, category, required_coins) VALUES
