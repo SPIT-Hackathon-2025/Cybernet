@@ -14,8 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 import { openSettings } from 'expo-linking';
+import { supabase } from '@/lib/supabase';
+import { ThemedText } from '@/components/ThemedText';
+import { Button } from '@/components/ui/Button';
 
-export default function MapScreen() {
+export default function HomeScreen() {
   const { user } = useAuth();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -23,8 +26,9 @@ export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [region, setRegion] = useState<Region>({
-    latitude: 37.78825,
-    longitude: -122.4324,
+    // Mumbai Andheri coordinates
+    latitude: 19.1136,
+    longitude: 72.8697,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
@@ -33,6 +37,7 @@ export default function MapScreen() {
   const bounceAnimation = useRef(new RNAnimated.Value(0)).current;
   const locationTimeout = useRef<NodeJS.Timeout>();
   const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -51,6 +56,10 @@ export default function MapScreen() {
       }
     };
   }, [user]);
+
+  useEffect(() => {
+    loadIssuesInBounds();
+  }, [region]);
 
   const startBounceAnimation = () => {
     RNAnimated.loop(
@@ -191,16 +200,17 @@ export default function MapScreen() {
     }
   };
 
-  const loadIssuesInView = async (newRegion: Region) => {
+  const loadIssuesInBounds = async () => {
     try {
-      const bounds = {
-        north: newRegion.latitude + newRegion.latitudeDelta / 2,
-        south: newRegion.latitude - newRegion.latitudeDelta / 2,
-        east: newRegion.longitude + newRegion.longitudeDelta / 2,
-        west: newRegion.longitude - newRegion.longitudeDelta / 2,
-      };
-      const data = await issueService.getIssues(bounds);
-      setIssues(data);
+      const { data, error } = await supabase.rpc('get_issues_in_bounds', {
+        min_lat: region.latitude - region.latitudeDelta / 2,
+        min_lng: region.longitude - region.longitudeDelta / 2,
+        max_lat: region.latitude + region.latitudeDelta / 2,
+        max_lng: region.longitude + region.longitudeDelta / 2,
+      });
+
+      if (error) throw error;
+      setIssues(data || []);
     } catch (error) {
       console.error('Error loading issues:', error);
     }
@@ -225,11 +235,10 @@ export default function MapScreen() {
 
   const getMarkerColor = (status: Issue['status']) => {
     switch (status) {
-      case 'pending': return theme.warning;
-      case 'verified': return theme.success;
-      case 'in_progress': return theme.primary;
-      case 'resolved': return theme.textDim;
-      default: return theme.primary;
+      case 'open': return Colors.light.primary;
+      case 'in_progress': return Colors.light.warning;
+      case 'resolved': return Colors.light.success;
+      default: return Colors.light.primary;
     }
   };
 
@@ -241,19 +250,27 @@ export default function MapScreen() {
       >
         <Text style={[styles.headerTitle, { color: theme.text }]}>Community Map</Text>
         <View style={styles.statsContainer}>
-          <Card style={styles.statCard}>
-            <Ionicons name="alert-circle" size={24} color={theme.warning} />
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {issues.filter(i => i.status === 'pending').length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textDim }]}>Pending</Text>
+          <Card style={[styles.statsCard, { backgroundColor: '#000000' }]}>
+            <View style={styles.stat}>
+              <Ionicons name="alert-circle" size={24} color={Colors.light.warning} />
+              <ThemedText style={[styles.statValue, { color: '#FFFFFF' }]}>
+                {issues.filter(i => i.status === 'open').length}
+              </ThemedText>
+              <ThemedText style={[styles.statLabel, { color: '#FFFFFF' }]}>
+                Pending
+              </ThemedText>
+            </View>
           </Card>
-          <Card style={styles.statCard}>
-            <Ionicons name="checkmark-circle" size={24} color={theme.success} />
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {issues.filter(i => i.status === 'resolved').length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textDim }]}>Resolved</Text>
+          <Card style={[styles.statsCard, { backgroundColor: '#000000' }]}>
+            <View style={styles.stat}>
+              <Ionicons name="checkmark-circle" size={24} color={Colors.light.success} />
+              <ThemedText style={[styles.statValue, { color: '#FFFFFF' }]}>
+                {issues.filter(i => i.status === 'resolved').length}
+              </ThemedText>
+              <ThemedText style={[styles.statLabel, { color: '#FFFFFF' }]}>
+                Resolved
+              </ThemedText>
+            </View>
           </Card>
         </View>
       </LinearGradient>
@@ -269,7 +286,7 @@ export default function MapScreen() {
         showsScale={true}
         onRegionChangeComplete={(newRegion) => {
           setRegion(newRegion);
-          loadIssuesInView(newRegion);
+          loadIssuesInBounds();
         }}
         customMapStyle={mapStyle}
       >
@@ -277,17 +294,12 @@ export default function MapScreen() {
           <Marker
             key={issue.id}
             coordinate={{
-              latitude: issue.location.latitude,
-              longitude: issue.location.longitude,
+              latitude: issue.location.coordinates[1],
+              longitude: issue.location.coordinates[0],
             }}
-            title={issue.title}
-            description={issue.description}
-            onPress={() => handleMarkerPress(issue)}
-          >
-            <View style={[styles.markerContainer, { backgroundColor: getMarkerColor(issue.status) }]}>
-              <Ionicons name="alert-circle" size={24} color="white" />
-            </View>
-          </Marker>
+            pinColor={getMarkerColor(issue.status)}
+            onPress={() => setSelectedIssue(issue)}
+          />
         ))}
       </MapView>
 
@@ -333,6 +345,42 @@ export default function MapScreen() {
         style={styles.fab}
         size={28}
       />
+
+      <TouchableOpacity 
+        style={styles.locationButton}
+        onPress={requestLocationAndZoom}
+        disabled={isLocatingUser}
+      >
+        <Ionicons 
+          name={isLocatingUser ? "locate" : "locate-outline"} 
+          size={24} 
+          color={Colors.light.primary} 
+        />
+      </TouchableOpacity>
+
+      {selectedIssue && (
+        <Card style={styles.issueCard}>
+          <View style={styles.issueHeader}>
+            <View>
+              <ThemedText type="title" style={styles.issueTitle}>
+                {selectedIssue.title}
+              </ThemedText>
+              <ThemedText style={styles.issueStatus} dimmed>
+                {selectedIssue.status.replace('_', ' ').toUpperCase()}
+              </ThemedText>
+            </View>
+            <Button
+              variant="outline"
+              onPress={() => router.push(`/issue/${selectedIssue.id}`)}
+            >
+              View Details
+            </Button>
+          </View>
+          <ThemedText style={styles.issueDescription} dimmed>
+            {selectedIssue.description}
+          </ThemedText>
+        </Card>
+      )}
     </View>
   );
 }
@@ -364,18 +412,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  statCard: {
+  statsCard: {
     flex: 1,
-    padding: 12,
+    padding: 20,
     alignItems: 'center',
-    gap: 4,
+    backgroundColor: '#000000',
+    borderRadius: 12,
   },
-  statNumber: {
+  stat: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  statValue: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.9,
   },
   markerContainer: {
     padding: 8,
@@ -419,6 +475,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: '#4A4A4A',
+  },
+  issueCard: {
+    position: 'absolute',
+    bottom: 100,
+    left: 16,
+    right: 16,
+    padding: 16,
+  },
+  issueHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  issueTitle: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  issueStatus: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+  },
+  issueDescription: {
+    fontSize: 14,
+  },
+  locationButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 16,
+    backgroundColor: '#FFFFFF',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
 

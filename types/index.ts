@@ -2,15 +2,15 @@ export interface Issue {
   id: string;
   title: string;
   description: string;
-  status: 'pending' | 'verified' | 'in_progress' | 'resolved';
+  status: 'open' | 'in_progress' | 'resolved';
   location: {
-    latitude: number;
-    longitude: number;
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
   };
-  reporter_id: string;
   created_at: string;
-  photos?: string[];
-  category?: string;
+  updated_at: string;
+  user_id: string;
+  category: string;
 }
 
 export interface Bounds {

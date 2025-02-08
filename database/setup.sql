@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS venues CASCADE;
 DROP FUNCTION IF EXISTS increment_coins CASCADE;
 DROP FUNCTION IF EXISTS get_full_profile CASCADE;
 DROP FUNCTION IF EXISTS update_user_rank CASCADE;
+DROP FUNCTION IF EXISTS get_issues_in_bounds CASCADE;
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -100,6 +101,25 @@ CREATE TABLE issue_verifications (
 );
 
 -- Create helper functions
+CREATE OR REPLACE FUNCTION get_issues_in_bounds(
+    min_lat DOUBLE PRECISION,
+    min_lng DOUBLE PRECISION,
+    max_lat DOUBLE PRECISION,
+    max_lng DOUBLE PRECISION
+) RETURNS SETOF issues AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM issues
+    WHERE ST_Within(
+        location,
+        ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)
+    )
+    AND status != 'resolved'
+    ORDER BY created_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION increment_coins(user_id UUID, amount INTEGER)
 RETURNS INTEGER AS $$
 DECLARE

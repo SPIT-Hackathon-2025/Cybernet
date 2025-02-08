@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { gamificationService } from '@/services/gamificationService';
 import { Achievement, TrainerRank } from '@/types';
 import { PokeguideCharacter } from '@/components/PokeguideCharacter';
+import { CivicCoin } from '@/components/CivicCoin';
 
 const RANK_BADGES = {
   'Novice Trainer': require('@/assets/images/badges/Novice Trainer.png'),
@@ -133,9 +134,11 @@ export default function AchievementsScreen() {
                       ]} 
                     />
                   </View>
-                  <ThemedText style={styles.progressText}>
-                    {civicCoins}/{RANK_REQUIREMENTS[nextRank]} CC
-                  </ThemedText>
+                  <View style={styles.progressTextContainer}>
+                    <CivicCoin amount={civicCoins} size="small" />
+                    <ThemedText style={styles.progressText}>/</ThemedText>
+                    <CivicCoin amount={RANK_REQUIREMENTS[nextRank]} size="small" />
+                  </View>
                 </View>
                 <ThemedText style={styles.nextRank}>
                   Next: {nextRank}
@@ -159,9 +162,10 @@ export default function AchievementsScreen() {
               <ThemedText style={styles.achievementName}>
                 {rank}
               </ThemedText>
-              <ThemedText style={styles.achievementRequirement}>
-                Required: {RANK_REQUIREMENTS[rank as TrainerRank]} CC
-              </ThemedText>
+              <View style={styles.requirementContainer}>
+                <ThemedText style={styles.requirementLabel}>Required: </ThemedText>
+                <CivicCoin amount={RANK_REQUIREMENTS[rank as TrainerRank]} size="small" />
+              </View>
               {RANK_REQUIREMENTS[rank as TrainerRank] <= civicCoins && (
                 <View style={[styles.unlockedBadge, { backgroundColor: RANK_COLORS[rank as TrainerRank] }]}>
                   <ThemedText style={styles.unlockedText}>Unlocked!</ThemedText>
@@ -270,8 +274,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
-  achievementRequirement: {
-    fontSize: 14,
+  requirementContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  requirementLabel: {
+    fontSize: 12,
     opacity: 0.7,
   },
   unlockedBadge: {
@@ -287,5 +296,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+  },
+  progressTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    width: 120,
+    justifyContent: 'flex-end',
   },
 }); 

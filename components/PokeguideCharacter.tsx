@@ -27,6 +27,7 @@ const emotionImages = {
   'shouting-in-anger': require('../assets/images/pokeguide/pokeguide-shouting-in-anger.png'),
   'shouting': require('../assets/images/pokeguide/pokeguide-shouting.png'),
   'thinking': require('../assets/images/pokeguide/pokeguide-thinking.png'),
+  'with-cc-coin': require('../assets/images/pokeguide/pokeguide-with-cc-coin.png'),
 } as const;
 
 export function PokeguideCharacter({ 

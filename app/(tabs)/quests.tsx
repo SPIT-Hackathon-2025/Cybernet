@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { gamificationService } from '@/services/gamificationService';
 import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 import { useColorScheme } from 'react-native';
+import { CivicCoin } from '@/components/CivicCoin';
 
 const { width } = Dimensions.get('window');
 
@@ -50,9 +51,7 @@ export default function QuestsScreen() {
             {quest.title}
           </ThemedText>
           <View style={styles.rewardBadge}>
-            <ThemedText style={styles.rewardText} dimmed>
-              {quest.reward_amount} CC
-            </ThemedText>
+            <CivicCoin amount={quest.reward_amount} size="small" />
           </View>
         </View>
 
