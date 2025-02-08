@@ -89,6 +89,14 @@ export type TrainerRank =
   | 'District Champion' 
   | 'Elite PokeRanger';
 
+export type QuestType = 
+  | 'verify_issues'
+  | 'report_issues'
+  | 'report_lost_items'
+  | 'help_found_items'
+  | 'visit_locations'
+  | 'daily_login';
+
 export type Quest = {
   id: string;
   title: string;
@@ -96,8 +104,9 @@ export type Quest = {
   reward_amount: number;
   progress: number;
   required: number;
-  expires_at?: string;
+  expires_at: string;
   status: 'active' | 'completed' | 'expired';
+  type: QuestType;
   isNew?: boolean;
   completed?: boolean;
 };
