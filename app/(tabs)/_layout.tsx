@@ -1,10 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, Platform } from 'react-native';
 import { HapticTab } from '@/components/HapticTab';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 
 // Define theme colors
 const THEME = {
@@ -43,6 +44,10 @@ export default function TabLayout() {
         tabBarItemStyle: {
           paddingVertical: 4,
         },
+        animation: 'spring',
+        contentStyle: {
+          backgroundColor: '#FFFFFF',
+        }
       }}>
       <Tabs.Screen
         name="index"
