@@ -1,9 +1,27 @@
 import { supabase } from '@/lib/supabase';
-import { UserProfile, Achievement } from '@/types';
+import { UserProfile, Achievement, TrainerRank, Badge } from '@/types';
+
+interface AchievementData {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  required_coins: number;
+}
+
+interface UserAchievementData {
+  id: string;
+  achievement: AchievementData;
+  unlocked: boolean;
+  unlocked_at: string | null;
+  progress: number | null;
+  required: number | null;
+}
 
 class GamificationService {
   async awardPoints(userId: string, amount: number, reason: string) {
-    const { data, error } = await supabase
+    const { data: transaction, error: transactionError } = await supabase
       .from('point_transactions')
       .insert([
         {
@@ -11,28 +29,53 @@ class GamificationService {
           amount,
           type: reason,
         },
-      ]);
+      ])
+      .select()
+      .single();
 
-    if (error) throw error;
-    return data;
+    if (transactionError) throw transactionError;
+
+    // Update user's civic coins
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .update({
+        civic_coins: supabase.rpc('increment_coins', { user_id: userId, amount })
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (profileError) throw profileError;
+
+    // Check for new achievements
+    await this.checkAchievements(userId);
+
+    return { transaction, profile };
   }
 
   async getUserProfile(userId: string): Promise<UserProfile> {
-    // Get basic user info
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('*')
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select(`
+        id,
+        username,
+        avatar_url,
+        rank,
+        trainer_level,
+        civic_coins,
+        trust_score
+      `)
       .eq('id', userId)
       .single();
 
-    if (userError) throw userError;
+    if (profileError) throw profileError;
 
-    // Get badges
-    const { data: badges, error: badgesError } = await supabase
-      .from('user_badges')
+    // Get achievements
+    const { data: achievements, error: achievementsError } = await supabase
+      .from('user_achievements')
       .select(`
         id,
-        badge:badges (
+        achievement:achievements (
           name,
           description,
           icon,
@@ -45,7 +88,7 @@ class GamificationService {
       `)
       .eq('user_id', userId);
 
-    if (badgesError) throw badgesError;
+    if (achievementsError) throw achievementsError;
 
     // Get recent activity
     const { data: activity, error: activityError } = await supabase
@@ -57,19 +100,21 @@ class GamificationService {
 
     if (activityError) throw activityError;
 
+    const badges: Badge[] = (achievements as any[]).map(a => ({
+      id: a.id,
+      name: a.achievement.name,
+      description: a.achievement.description,
+      icon: a.achievement.icon,
+      category: a.achievement.category,
+      unlocked: a.unlocked,
+      unlocked_at: a.unlocked_at,
+      progress: a.progress,
+      required: a.required,
+    }));
+
     return {
-      ...user,
-      badges: badges.map(b => ({
-        id: b.id,
-        name: b.badge.name,
-        description: b.badge.description,
-        icon: b.badge.icon,
-        category: b.badge.category,
-        unlocked: b.unlocked,
-        unlocked_at: b.unlocked_at,
-        progress: b.progress,
-        required: b.required,
-      })),
+      ...profile,
+      badges,
       recent_activity: activity.map(a => ({
         id: a.id,
         title: a.type,
@@ -83,35 +128,49 @@ class GamificationService {
 
   async getAchievements(userId: string): Promise<Achievement[]> {
     const { data, error } = await supabase
-      .from('achievements')
+      .from('user_achievements')
       .select(`
         id,
-        name,
-        description,
-        icon,
-        category,
-        user_achievements (
-          unlocked,
-          unlocked_at,
-          progress,
-          required
-        )
+        achievement:achievements (
+          id,
+          name,
+          description,
+          icon,
+          category,
+          required_coins
+        ),
+        unlocked,
+        unlocked_at,
+        progress,
+        required
       `)
-      .eq('user_achievements.user_id', userId);
+      .eq('user_id', userId);
 
     if (error) throw error;
 
-    return data.map(achievement => ({
-      id: achievement.id,
-      name: achievement.name,
-      description: achievement.description,
-      icon: achievement.icon,
-      category: achievement.category,
-      unlocked: achievement.user_achievements?.[0]?.unlocked ?? false,
-      unlocked_at: achievement.user_achievements?.[0]?.unlocked_at,
-      progress: achievement.user_achievements?.[0]?.progress,
-      required: achievement.user_achievements?.[0]?.required,
+    const achievements: Achievement[] = (data as any[]).map(ua => ({
+      id: ua.achievement.id,
+      name: ua.achievement.name,
+      description: ua.achievement.description,
+      icon: ua.achievement.icon,
+      category: ua.achievement.category,
+      unlocked: ua.unlocked,
+      unlocked_at: ua.unlocked_at,
+      progress: ua.progress,
+      required: ua.required || ua.achievement.required_coins,
     }));
+
+    return achievements;
+  }
+
+  async getRankRequirements(): Promise<{ rank: TrainerRank; required_coins: number; description: string; }[]> {
+    const { data, error } = await supabase
+      .from('rank_requirements')
+      .select('*')
+      .order('required_coins', { ascending: true });
+
+    if (error) throw error;
+    return data;
   }
 
   async getActiveQuests(userId: string) {
@@ -159,12 +218,50 @@ class GamificationService {
     return data;
   }
 
+  private async checkAchievements(userId: string) {
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('civic_coins')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    // Get all achievements that could be unlocked
+    const { data: achievements, error: achievementsError } = await supabase
+      .from('achievements')
+      .select('*')
+      .lte('required_coins', profile.civic_coins)
+      .order('required_coins', { ascending: true });
+
+    if (achievementsError) throw achievementsError;
+
+    // Update or insert user achievements
+    for (const achievement of achievements) {
+      const { error: upsertError } = await supabase
+        .from('user_achievements')
+        .upsert({
+          user_id: userId,
+          achievement_id: achievement.id,
+          unlocked: true,
+          unlocked_at: new Date().toISOString(),
+          progress: profile.civic_coins,
+          required: achievement.required_coins,
+        }, {
+          onConflict: 'user_id,achievement_id',
+        });
+
+      if (upsertError) throw upsertError;
+    }
+  }
+
   private getActivityIcon(type: string): string {
     const icons: Record<string, string> = {
       'issue_report': 'alert-circle',
       'issue_verification': 'checkmark-circle',
       'quest_completion': 'trophy',
       'badge_earned': 'medal',
+      'rank_up': 'star',
       'default': 'star',
     };
 

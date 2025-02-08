@@ -24,7 +24,7 @@ export interface UserProfile {
   id: string;
   username: string;
   avatar_url: string;
-  rank: string;
+  rank: TrainerRank;
   trainer_level: number;
   civic_coins: number;
   trust_score: number;
@@ -39,9 +39,9 @@ export interface Badge {
   icon: string;
   category: string;
   unlocked: boolean;
-  unlocked_at?: string;
-  progress?: number;
-  required?: number;
+  unlocked_at: string | null;
+  progress: number | null;
+  required: number | null;
 }
 
 export interface Activity {
@@ -55,8 +55,8 @@ export interface Activity {
 
 export interface Achievement extends Badge {
   category: string;
-  progress?: number;
-  required?: number;
+  progress: number | null;
+  required: number | null;
 }
 
 export interface Colors {
