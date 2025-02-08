@@ -28,7 +28,9 @@ export const Colors = {
     dark: ['#1A1A1A', '#2A2A2A', '#3A3A3A'],
   },
   light: {
-    accent: '#FFDE00', // Pokemon Yellow
+    primary: '#FF5D00',
+    secondary: '#4A4A4A',
+    accent: '#2ECC71',
     success: '#2ECC71', // Green for verified issues
     warning: '#FFB900', // Yellow for pending issues
     error: '#FF3B30', // Red for errors
@@ -39,7 +41,9 @@ export const Colors = {
     tabIconSelected: tintColorLight,
   },
   dark: {
-    accent: '#FFE83D', // Brighter Pokemon Yellow
+    primary: '#FF5D00',
+    secondary: '#4A4A4A',
+    accent: '#2ECC71',
     success: '#25A25A', // Darker Green
     warning: '#CC9400', // Darker Yellow
     error: '#CC2E26', // Darker Red
