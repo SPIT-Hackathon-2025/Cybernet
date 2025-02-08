@@ -66,7 +66,6 @@ export default function SignInScreen() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
-                style={styles.input}
               />
 
               <TextInput
@@ -74,7 +73,6 @@ export default function SignInScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                style={styles.input}
               />
 
               <Link href="/reset-password" asChild>
@@ -161,20 +159,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 32,
+    lineHeight: 34,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   inputContainer: {
     gap: 16,
     marginBottom: 24,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 0,
-    color: '#FFFFFF',
+    // Remove redundant styles since they're handled in TextInput component
   },
   forgotText: {
     color: '#FF5D00',
     fontSize: 14,
     textAlign: 'right',
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   buttonContainer: {
     gap: 20,
@@ -196,6 +198,9 @@ const styles = StyleSheet.create({
   dividerText: {
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 14,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   googleButton: {
     backgroundColor: 'transparent',
@@ -204,11 +209,15 @@ const styles = StyleSheet.create({
   googleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
   googleText: {
     color: '#FFFFFF',
     fontSize: 16,
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   signUpLink: {
     alignItems: 'center',
@@ -217,9 +226,15 @@ const styles = StyleSheet.create({
   signUpText: {
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 14,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   signUpHighlight: {
     color: '#FF5D00',
     fontWeight: 'bold',
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 }); 

@@ -59,8 +59,8 @@ export default function ResetPasswordScreen() {
                   setError('');
                 }}
                 autoCapitalize="none"
+                autoCorrect={false}
                 keyboardType="email-address"
-                style={styles.input}
               />
               {error ? (
                 <ThemedText style={styles.errorText}>{error}</ThemedText>
@@ -119,26 +119,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 12,
+    lineHeight: 34,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   description: {
     textAlign: 'center',
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 16,
     lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   inputContainer: {
     gap: 16,
     marginBottom: 24,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 0,
-    color: '#FFFFFF',
+    // Remove redundant styles since they're handled in TextInput component
   },
   errorText: {
     color: '#FF4444',
     fontSize: 12,
     marginTop: -12,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   buttonContainer: {
     gap: 20,
@@ -158,5 +164,8 @@ const styles = StyleSheet.create({
     color: '#FF5D00',
     fontSize: 16,
     fontWeight: '600',
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 }); 

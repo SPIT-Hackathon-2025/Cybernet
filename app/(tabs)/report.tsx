@@ -3,7 +3,15 @@ import { StyleSheet, View, ScrollView, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+// Conditionally import MapView
+const MapView = Platform.select({
+  web: () => require('react-native-web-maps').default,
+  default: () => require('react-native-maps').default,
+})();
+const Marker = Platform.select({
+  web: () => require('react-native-web-maps').Marker,
+  default: () => require('react-native-maps').Marker,
+})();
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/TextInput';
@@ -112,7 +120,7 @@ export default function ReportScreen() {
               {categories.map((cat) => (
                 <Button
                   key={cat}
-                  variant={category === cat ? 'primary' : 'outline'}
+                  variant={category === cat ? 'default' : 'outline'}
                   size="small"
                   style={styles.categoryButton}
                   onPress={() => setCategory(cat)}
@@ -127,7 +135,7 @@ export default function ReportScreen() {
             <ThemedText style={styles.label}>Location</ThemedText>
             <MapView
               style={styles.map}
-              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+              provider={Platform.OS === 'android' ? 'google' : undefined}
               initialRegion={{
                 ...location,
                 latitudeDelta: 0.01,

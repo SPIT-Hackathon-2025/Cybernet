@@ -65,42 +65,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserProfile = async (userId: string) => {
     try {
-      const { data: existingProfile, error: fetchError } = await supabase
+      // First try to get the existing profile
+      const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Profile doesn't exist, create one using the secure function
+          const { data: newProfile, error: createError } = await supabase
+            .rpc('create_new_profile', {
+              user_id: userId,
+              user_name: user?.user_metadata?.username || `Trainer${userId.substring(0, 6)}`
+            });
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            return;
+          }
+
+          setUserProfile(newProfile);
+          return;
+        }
+        
+        console.error('Error loading profile:', error);
+        return;
       }
 
-      if (!existingProfile) {
-        const defaultProfile = {
-          id: userId,
-          username: user?.email?.split('@')[0] || 'Trainer',
-          trainer_level: 1,
-          civic_coins: 0,
-          trust_score: 0,
-          rank: 'Novice Trainer',
-          badges: [],
-          created_at: new Date().toISOString(),
-        };
-
-        const { data: newProfile, error: createError } = await supabase
-          .from('user_profiles')
-          .insert([defaultProfile])
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        setUserProfile(newProfile);
-      } else {
-        setUserProfile(existingProfile);
-      }
+      setUserProfile(profile);
     } catch (error: any) {
-      console.error('Error loading/creating user profile:', error.message);
-      Alert.alert('Profile Error', 'Failed to load user profile');
+      console.error('Error in loadUserProfile:', error.message);
     }
   };
 
@@ -146,20 +142,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            username,
+            username: username,
+            full_name: username,
           },
         },
       });
 
       if (error) throw error;
+
+      if (data.user) {
+        // Create user profile using the secure function
+        const { error: profileError } = await supabase
+          .rpc('create_new_profile', {
+            user_id: data.user.id,
+            user_name: username
+          });
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+        }
+      }
+
       Alert.alert(
-        'Verification Required',
-        'Please check your email for a verification link'
+        'Success',
+        'Account created successfully! You can now sign in.'
       );
       router.replace('/(auth)/sign-in');
     } catch (error: any) {

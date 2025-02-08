@@ -116,7 +116,7 @@ export default function SignUpScreen() {
                   value={formData.username}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, username: text }))}
                   autoCapitalize="none"
-                  style={styles.input}
+                  autoCorrect={false}
                 />
                 {errors.username ? (
                   <ThemedText style={styles.errorText}>{errors.username}</ThemedText>
@@ -127,8 +127,8 @@ export default function SignUpScreen() {
                   value={formData.email}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
                   autoCapitalize="none"
+                  autoCorrect={false}
                   keyboardType="email-address"
-                  style={styles.input}
                 />
                 {errors.email ? (
                   <ThemedText style={styles.errorText}>{errors.email}</ThemedText>
@@ -139,7 +139,8 @@ export default function SignUpScreen() {
                   value={formData.password}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, password: text }))}
                   secureTextEntry
-                  style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
                 {errors.password ? (
                   <ThemedText style={styles.errorText}>{errors.password}</ThemedText>
@@ -150,7 +151,8 @@ export default function SignUpScreen() {
                   value={formData.confirmPassword}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, confirmPassword: text }))}
                   secureTextEntry
-                  style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                 />
                 {errors.confirmPassword ? (
                   <ThemedText style={styles.errorText}>{errors.confirmPassword}</ThemedText>
@@ -180,8 +182,10 @@ export default function SignUpScreen() {
                   size="large"
                   style={styles.googleButton}
                 >
-                  <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
-                  <ThemedText style={styles.googleText}>Continue with Google</ThemedText>
+                  <View style={styles.googleButtonContent}>
+                    <Ionicons name="logo-google" size={20} color="#4285F4" />
+                    <ThemedText style={styles.googleText}>Continue with Google</ThemedText>
+                  </View>
                 </Button>
 
                 <Link href="/sign-in" asChild>
@@ -213,7 +217,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
-    paddingTop: 60,
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
@@ -225,12 +229,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 8,
     textAlign: 'center',
+    lineHeight: 40,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
     color: '#FFFFFF',
     opacity: 0.9,
     textAlign: 'center',
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   formContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -242,14 +252,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 0,
-    color: '#FFFFFF',
+    // Remove redundant styles since they're handled in TextInput component
   },
   errorText: {
     color: '#FF4444',
     fontSize: 12,
     marginTop: -12,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   buttonContainer: {
     gap: 20,
@@ -271,10 +282,15 @@ const styles = StyleSheet.create({
   dividerText: {
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 14,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   googleButton: {
     backgroundColor: 'transparent',
     borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  googleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -285,6 +301,9 @@ const styles = StyleSheet.create({
   },
   googleText: {
     color: '#FFFFFF',
+    lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   signInLink: {
     alignItems: 'center',
@@ -293,9 +312,15 @@ const styles = StyleSheet.create({
   signInText: {
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 14,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   signInHighlight: {
     color: '#FF5D00',
     fontWeight: 'bold',
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 }); 

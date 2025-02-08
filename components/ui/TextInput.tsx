@@ -8,7 +8,7 @@ export function TextInput(props: TextInputProps) {
   return (
     <AnimatedView entering={FadeIn} style={styles.container}>
       <RNTextInput
-        placeholderTextColor="rgba(0,0,0,0.5)"
+        placeholderTextColor="rgba(255, 255, 255, 0.5)"
         style={[styles.input, props.style]}
         {...props}
       />
@@ -18,16 +18,19 @@ export function TextInput(props: TextInputProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.background.light,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border.light,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   input: {
     height: 50,
     paddingHorizontal: 16,
+    paddingVertical: 8,
     fontSize: 16,
-    color: Colors.text.primary,
+    color: '#FFFFFF',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 }); 

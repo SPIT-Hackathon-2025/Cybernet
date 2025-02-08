@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '@/components/ui/Button';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,6 +17,7 @@ const slides = [
     description: 'Your community-driven Pokémon GO companion for making your city better, one catch at a time!',
     image: require('@/assets/images/pokeguide/pokeguide-happy-with-football.png'),
     gradient: ['#FF5D00', '#CC4A00'],
+    icon: 'map-outline',
   },
   {
     id: '2',
@@ -23,6 +25,7 @@ const slides = [
     description: 'Help improve your community by reporting issues you spot during your Pokémon adventures.',
     image: require('@/assets/images/pokeguide/pokeguide-explaining.png'),
     gradient: ['#1A1A1A', '#4A4A4A'],
+    icon: 'warning-outline',
   },
   {
     id: '3',
@@ -30,6 +33,7 @@ const slides = [
     description: 'Connect with fellow trainers, earn badges, and make your city a better place!',
     image: require('@/assets/images/pokeguide/pokeguide-announcing.png'),
     gradient: ['#FF8533', '#FF5D00'],
+    icon: 'people-outline',
   },
 ];
 
@@ -101,7 +105,17 @@ export default function OnboardingScreen() {
           size="large"
           style={styles.button}
         >
-          {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+          <View style={styles.buttonContent}>
+            <ThemedText style={styles.buttonText}>
+              {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+            </ThemedText>
+            <Ionicons 
+              name={currentIndex === slides.length - 1 ? 'arrow-forward' : 'arrow-forward-outline'} 
+              size={20} 
+              color="#000000"
+              style={styles.buttonIcon}
+            />
+          </View>
         </Button>
       </View>
     </View>
@@ -137,6 +151,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
+    lineHeight: 34,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   description: {
     fontSize: 16,
@@ -144,6 +161,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.9,
     lineHeight: 24,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   footer: {
     position: 'absolute',
@@ -170,5 +189,21 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#FFFFFF',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  buttonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '600',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  buttonIcon: {
+    marginTop: 2,
   },
 }); 
