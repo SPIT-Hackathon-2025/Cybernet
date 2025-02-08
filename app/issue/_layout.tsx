@@ -4,16 +4,16 @@ export default function IssueLayout() {
   return (
     <Stack>
       <Stack.Screen 
-        name="[id]" 
+        name="new" 
         options={{ 
-          title: 'Issue Details',
+          title: 'Report New Issue',
           presentation: 'modal'
         }} 
       />
       <Stack.Screen 
-        name="create" 
+        name="[id]" 
         options={{ 
-          title: 'Report Issue',
+          title: 'Issue Details',
           presentation: 'modal'
         }} 
       />

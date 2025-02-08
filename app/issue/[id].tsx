@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Image, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, Image, Platform, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,15 +21,21 @@ export default function IssueDetailScreen() {
   const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
+    if (id === 'new') {
+      router.replace('/issue/new');
+      return;
+    }
+
     loadIssue();
   }, [id]);
 
   const loadIssue = async () => {
     try {
-      const data = await issueService.getIssueById(id as string);
+      const data = await issueService.getIssue(id as string);
       setIssue(data);
     } catch (error) {
       console.error('Error loading issue:', error);
+      Alert.alert('Error', 'Failed to load issue details');
       router.back();
     } finally {
       setLoading(false);
