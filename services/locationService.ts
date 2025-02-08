@@ -34,14 +34,14 @@ export const getCurrentLocation = async (): Promise<LocationData> => {
 export const getNearbyVerifiedVenues = async (
   latitude: number,
   longitude: number,
-  radiusMeters: number = 1000
+  radiusKm: number = 1.0
 ) => {
   try {
     const { data, error } = await supabase
       .rpc('get_nearby_verified_venues', {
         lat: latitude,
         lng: longitude,
-        radius_meters: radiusMeters
+        radius_km: radiusKm
       });
 
     if (error) throw error;
