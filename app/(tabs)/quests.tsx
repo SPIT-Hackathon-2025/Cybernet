@@ -1,173 +1,22 @@
-import { useState, useEffect } from 'react';
-import { StyleSheet, View, FlatList, Dimensions } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, FlatList, Dimensions, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, useSharedValue, withSpring, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
-import { Quest, QuestType } from '@/types';
+import { Quest } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { PokeguideCharacter } from '@/components/PokeguideCharacter';
+import { PokeguideCharacter, type Emotion } from '@/components/PokeguideCharacter';
 import { useColorScheme } from 'react-native';
 import { CivicCoin } from '@/components/CivicCoin';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { questService } from '@/services/questService';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
-
-// Quest pool with all possible quests
-const QUEST_POOL = [
-  {
-    id: 'verify_issues_small',
-    title: 'Issue Verifier',
-    description: 'Verify 3 reported issues in your area',
-    reward_amount: 50,
-    required: 3,
-    type: 'verify_issues',
-  },
-  {
-    id: 'verify_issues_medium',
-    title: 'Verification Expert',
-    description: 'Verify 5 reported issues today',
-    reward_amount: 80,
-    required: 5,
-    type: 'verify_issues',
-  },
-  {
-    id: 'report_issues_small',
-    title: 'Community Reporter',
-    description: 'Report 2 community issues',
-    reward_amount: 40,
-    required: 2,
-    type: 'report_issues',
-  },
-  {
-    id: 'report_issues_medium',
-    title: 'Active Reporter',
-    description: 'Report 4 issues in different locations',
-    reward_amount: 70,
-    required: 4,
-    type: 'report_issues',
-  },
-  {
-    id: 'lost_items_small',
-    title: 'Lost Item Helper',
-    description: 'Report 1 found item',
-    reward_amount: 30,
-    required: 1,
-    type: 'help_found_items',
-  },
-  {
-    id: 'lost_items_medium',
-    title: 'Lost & Found Hero',
-    description: 'Help return 2 lost items to their owners',
-    reward_amount: 60,
-    required: 2,
-    type: 'help_found_items',
-  },
-  {
-    id: 'locations_small',
-    title: 'Area Explorer',
-    description: 'Visit 3 different locations on the map',
-    reward_amount: 40,
-    required: 3,
-    type: 'visit_locations',
-  },
-  {
-    id: 'locations_medium',
-    title: 'District Explorer',
-    description: 'Visit and verify issues in 5 locations',
-    reward_amount: 75,
-    required: 5,
-    type: 'visit_locations',
-  },
-  {
-    id: 'daily_login',
-    title: 'Daily Check-in',
-    description: 'Log in and check community updates',
-    reward_amount: 20,
-    required: 1,
-    type: 'daily_login',
-  },
-  {
-    id: 'verify_urgent',
-    title: 'Urgent Verifier',
-    description: 'Verify 2 urgent reported issues',
-    reward_amount: 60,
-    required: 2,
-    type: 'verify_issues',
-  },
-  {
-    id: 'report_safety',
-    title: 'Safety Guardian',
-    description: 'Report 2 safety-related issues',
-    reward_amount: 55,
-    required: 2,
-    type: 'report_issues',
-  },
-  {
-    id: 'help_community',
-    title: 'Community Helper',
-    description: 'Help resolve 2 community issues',
-    reward_amount: 65,
-    required: 2,
-    type: 'verify_issues',
-  },
-  {
-    id: 'explore_new',
-    title: 'New Area Scout',
-    description: 'Report issues from 2 new locations',
-    reward_amount: 45,
-    required: 2,
-    type: 'visit_locations',
-  },
-  {
-    id: 'lost_urgent',
-    title: 'Urgent Recovery',
-    description: 'Help with urgent lost item reports',
-    reward_amount: 50,
-    required: 1,
-    type: 'help_found_items',
-  },
-  {
-    id: 'verification_streak',
-    title: 'Verification Streak',
-    description: 'Verify 3 issues within an hour',
-    reward_amount: 70,
-    required: 3,
-    type: 'verify_issues',
-  },
-];
-
-// Function to get today's date as a string (for comparing quest dates)
-const getTodayString = () => {
-  return new Date().toISOString().split('T')[0];
-};
-
-// Function to get end of day timestamp
-const getEndOfDay = () => {
-  const date = new Date();
-  date.setHours(23, 59, 59, 999);
-  return date.toISOString();
-};
-
-// Function to get end of third day timestamp
-const getEndOfThirdDay = () => {
-  const date = new Date();
-  date.setDate(date.getDate() + 3);
-  date.setHours(23, 59, 59, 999);
-  return date.toISOString();
-};
-
-// Function to check if quest is new (less than 1 day old)
-const isQuestNew = (expiresAt: string) => {
-  const expiryDate = new Date(expiresAt);
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setDate(twoDaysAgo.getDate() + 2);
-  return expiryDate > twoDaysAgo;
-};
 
 // Function to format remaining time
 const formatTimeLeft = (expiresAt: string) => {
@@ -188,135 +37,147 @@ const formatTimeLeft = (expiresAt: string) => {
   }
 };
 
-// Function to randomly select daily quests
-const selectDailyQuests = () => {
-  // Shuffle quest pool
-  const shuffled = [...QUEST_POOL].sort(() => Math.random() - 0.5);
-  
-  // Always include daily login quest
-  const dailyLoginQuest = QUEST_POOL.find(q => q.id === 'daily_login');
-  const selectedQuests = dailyLoginQuest ? [dailyLoginQuest] : [];
-  
-  // Add 2 more random quests
-  selectedQuests.push(...shuffled.filter(q => q.id !== 'daily_login').slice(0, 2));
-
-  // Convert to active quests with progress
-  return selectedQuests.map(quest => ({
-    ...quest,
-    progress: 0,
-    expires_at: getEndOfThirdDay(),
-    status: 'active' as const,
-    completed: false,
-  }));
-};
-
 export default function QuestsScreen() {
   const { user } = useAuth();
   const [quests, setQuests] = useState<Quest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+  const [showGuideMessage, setShowGuideMessage] = useState(false);
+  const [guideEmotion, setGuideEmotion] = useState<Emotion>('happy-with-football');
+  const bounceAnim = useSharedValue(0);
 
-  // Load or refresh quests
+  const loadQuests = async () => {
+    if (!user?.id) return;
+    try {
+      setLoading(true);
+      const activeQuests = await questService.getActiveQuests(user.id);
+      setQuests(activeQuests);
+    } catch (error) {
+      console.error('Error loading quests:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadQuests();
+    setRefreshing(false);
+  };
+
   useEffect(() => {
-    const loadQuests = async () => {
-      try {
-        setLoading(true);
-        // In a real app, you'd fetch the user's current quests from the backend
-        // For demo, we'll use localStorage/AsyncStorage
-        const storedQuests = await AsyncStorage.getItem('userQuests');
-        const storedDate = await AsyncStorage.getItem('questsDate');
-        const today = getTodayString();
-
-        if (storedQuests && storedDate === today) {
-          setQuests(JSON.parse(storedQuests));
-        } else {
-          // Generate new daily quests
-          const newQuests = selectDailyQuests();
-          setQuests(newQuests as Quest[]);
-          // Save new quests
-          await AsyncStorage.setItem('userQuests', JSON.stringify(newQuests));
-          await AsyncStorage.setItem('questsDate', today);
-        }
-      } catch (error) {
-        console.error('Error loading quests:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadQuests();
-  }, []);
+    // Complete daily login quest when screen loads
+    if (user?.id) {
+      questService.completeLoginQuest(user.id);
+    }
+  }, [user?.id]);
 
-  const handleQuestAction = (quest: Quest) => {
-    switch (quest.type) {
-      case 'verify_issues':
-        router.push('/');
-        break;
-      case 'report_issues':
-        router.push('/report');
-        break;
-      case 'help_found_items':
-        router.push('/lost-found');
-        break;
-      case 'visit_locations':
-        router.push('/');
-        break;
+  const handleQuestAction = async (quest: Quest) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (quest.progress >= quest.required) {
+      setGuideEmotion('happy-with-football');
+      setShowGuideMessage(true);
+      Alert.alert('Quest Completed!', 'You have already completed this quest. Great job! 🎉');
+      return;
+    }
+
+    try {
+      switch (quest.type) {
+        case 'verify_issues':
+          setGuideEmotion('explaining');
+          setShowGuideMessage(true);
+          router.push('/');
+          break;
+        case 'report_issues':
+          setGuideEmotion('thinking');
+          setShowGuideMessage(true);
+          router.push('/report');
+          break;
+        case 'help_found_items':
+          setGuideEmotion('concerned-asking');
+          setShowGuideMessage(true);
+          router.push('/lost-found');
+          break;
+        case 'visit_locations':
+          setGuideEmotion('announcing');
+          setShowGuideMessage(true);
+          router.push('/');
+          break;
+        case 'daily_login':
+          if (!quest.completed) {
+            const updatedQuest = await questService.updateQuestProgress(quest.id);
+            setQuests(current => 
+              current.map(q => q.id === updatedQuest.id ? updatedQuest : q)
+            );
+            setGuideEmotion('happy-with-football');
+            setShowGuideMessage(true);
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling quest action:', error);
+      setGuideEmotion('confused');
+      setShowGuideMessage(true);
+      Alert.alert('Error', 'Failed to process quest action. Please try again.');
     }
   };
 
-  const getQuestIcon = (type: QuestType): keyof typeof Ionicons.glyphMap => {
-    switch (type) {
-      case 'verify_issues':
-        return 'checkmark-circle';
-      case 'report_issues':
-        return 'alert-circle';
-      case 'help_found_items':
-        return 'search';
-      case 'visit_locations':
-        return 'location';
+  const getGuideMessage = () => {
+    switch (guideEmotion) {
+      case 'explaining':
+        return "Let's explore the community and help make it better! Check the map for issues nearby.";
+      case 'happy-with-football':
+        return "Great job on completing your quest! Keep up the amazing work! 🌟";
+      case 'thinking':
+        return "Found something that needs attention? Report it and help the community!";
+      case 'concerned-asking':
+        return "Someone might be looking for their lost items. Can you help them?";
+      case 'announcing':
+        return "Time to explore! Visit different locations to discover new quests and challenges!";
+      case 'confused':
+        return "Oops! Something went wrong. Don't worry, let's try that again!";
       default:
-        return 'star';
+        return "Complete quests to earn rewards and help the community!";
     }
   };
 
-  const renderQuest = ({ item: quest }: { item: Quest }) => (
-    <Animated.View 
-      entering={FadeInDown.delay(200)} 
-      style={styles.questWrapper}
-    >
-      <Card style={styles.questCard}>
-        {isQuestNew(quest.expires_at) && (
-          <View style={styles.newBadge}>
-            <ThemedText style={styles.newBadgeText}>NEW</ThemedText>
-          </View>
-        )}
-        
-        <View style={styles.questIconContainer}>
-          <View style={[styles.iconWrapper, { backgroundColor: theme.primary + '15' }]}>
-            <Ionicons 
-              name={getQuestIcon(quest.type)} 
-              size={24} 
-              color={theme.primary} 
-            />
-          </View>
-        </View>
+  const handleGuidePress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowGuideMessage(!showGuideMessage);
+  };
 
-        <View style={styles.questContent}>
+  const renderQuest = ({ item: quest }: { item: Quest }) => {
+    const progress = Math.min(quest.progress / quest.required, 1);
+    const isCompleted = quest.progress >= quest.required;
+
+    return (
+      <Animated.View
+        entering={FadeInDown}
+        style={styles.questItem}
+      >
+        <Card style={[styles.questCard, isCompleted && styles.completedQuest]}>
           <View style={styles.questHeader}>
-            <View style={styles.titleContainer}>
+            <View style={styles.questTitleRow}>
               <ThemedText type="title" style={styles.questTitle}>
                 {quest.title}
               </ThemedText>
-              <View style={styles.timerContainer}>
-                <Ionicons name="time-outline" size={14} color={theme.textDim} />
-                <ThemedText style={styles.timerText} dimmed>
-                  {formatTimeLeft(quest.expires_at)}
-                </ThemedText>
-              </View>
+              {quest.isNew && (
+                <View style={styles.newBadge}>
+                  <ThemedText style={styles.newBadgeText}>NEW</ThemedText>
+                </View>
+              )}
             </View>
-            <View style={[styles.rewardBadge, { backgroundColor: theme.primary + '10' }]}>
-              <CivicCoin amount={quest.reward_amount} size="small" />
+            <View style={styles.rewardContainer}>
+              <CivicCoin size="small" amount={quest.reward_amount} />
+              <ThemedText style={styles.rewardText}>{quest.reward_amount}</ThemedText>
             </View>
           </View>
 
@@ -325,14 +186,11 @@ export default function QuestsScreen() {
           </ThemedText>
 
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { backgroundColor: theme.card }]}>
+            <View style={styles.progressBar}>
               <View 
                 style={[
                   styles.progressFill,
-                  { 
-                    width: `${(quest.progress / quest.required) * 100}%`,
-                    backgroundColor: theme.primary
-                  }
+                  { width: `${progress * 100}%`, backgroundColor: theme.primary }
                 ]} 
               />
             </View>
@@ -341,49 +199,77 @@ export default function QuestsScreen() {
             </ThemedText>
           </View>
 
-          <Button 
-            variant={quest.completed ? "outline" : "default"}
-            disabled={quest.completed}
-            onPress={() => handleQuestAction(quest)}
-            style={styles.questButton}
-          >
-            {quest.completed ? "Completed" : "Start Quest"}
-          </Button>
-        </View>
-
-        {quest.completed && (
-          <PokeguideCharacter 
-            emotion="happy-with-football" 
-            size={40}
-            style={styles.completionGuide}
-          />
-        )}
-      </Card>
-    </Animated.View>
-  );
+          <View style={styles.questFooter}>
+            <View style={styles.timeContainer}>
+              <Ionicons name="time-outline" size={16} color={theme.textDim} />
+              <ThemedText style={styles.timeText} dimmed>
+                {formatTimeLeft(quest.expires_at)}
+              </ThemedText>
+            </View>
+            <Button
+              variant={isCompleted ? "ghost" : "default"}
+              onPress={() => handleQuestAction(quest)}
+              disabled={isCompleted}
+            >
+              {isCompleted ? 'Completed!' : 'Go'}
+            </Button>
+          </View>
+        </Card>
+      </Animated.View>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LinearGradient
-        colors={[theme.primary, theme.secondary]}
-        style={styles.header}
+        colors={['rgba(0,0,0,0.5)', 'transparent']}
+        style={styles.headerGradient}
       >
         <View style={styles.headerContent}>
-          <ThemedText style={styles.headerTitle} color="#FFFFFF">
-            Daily Quests
-          </ThemedText>
-          <ThemedText style={styles.headerSubtitle} color="rgba(255, 255, 255, 0.8)">
-            Complete quests to earn CivicCoins and badges
-          </ThemedText>
+          <View style={styles.headerText}>
+            <ThemedText style={styles.headerTitle}>
+              Daily Quests
+            </ThemedText>
+          </View>
+          <TouchableOpacity onPress={handleGuidePress}>
+            <PokeguideCharacter 
+              emotion={guideEmotion}
+              size={30}
+              style={styles.guideCharacter}
+            />
+          </TouchableOpacity>
         </View>
+        {showGuideMessage && (
+          <View style={styles.guideMessageContainer}>
+            <ThemedText style={styles.guideMessage}>
+              {getGuideMessage()}
+            </ThemedText>
+          </View>
+        )}
       </LinearGradient>
 
-      <FlatList
-        data={quests}
-        renderItem={renderQuest}
-        contentContainerStyle={styles.questList}
-        showsVerticalScrollIndicator={false}
-      />
+      {quests.length === 0 && !loading ? (
+        <View style={styles.emptyState}>
+          <PokeguideCharacter emotion="explaining" size={120} />
+          <ThemedText style={styles.emptyText} dimmed>
+            No active quests available.{'\n'}Check back tomorrow for new quests!
+          </ThemedText>
+        </View>
+      ) : (
+        <FlatList
+          data={quests}
+          renderItem={renderQuest}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.questList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+            />
+          }
+        />
+      )}
     </View>
   );
 }
@@ -392,89 +278,89 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: 20,
-    paddingBottom: 32,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  headerGradient: {
+    paddingTop: 5,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    marginBottom: 8,
   },
   headerContent: {
-    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
   },
-
+  headerText: {
+    flex: 1,
+    paddingTop: 8,
+  },
   headerTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    paddingTop: 20,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    opacity: 0.8,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    lineHeight: 34,
   },
   questList: {
     padding: 16,
-    paddingTop: 8,
+    paddingTop: 0,
   },
-  questWrapper: {
+  questItem: {
     marginBottom: 16,
   },
   questCard: {
-    padding: 0,
-    overflow: 'hidden',
-  },
-  questContent: {
     padding: 16,
   },
-  questIconContainer: {
-    position: 'absolute',
-    top: 10,
-    left: 16,
-    zIndex: 1,
-  },
-  iconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+  completedQuest: {
+    opacity: 0.8,
   },
   questHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
-    paddingLeft: 60,
+    marginBottom: 8,
   },
-  titleContainer: {
+  questTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    marginRight: 4,
+    marginRight: 8,
   },
   questTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
+    marginRight: 8,
   },
-  rewardBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+  newBadge: {
+    backgroundColor: '#FF5D00',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  questDescription: {
-    marginBottom: 16,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingLeft: 36,
+  newBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
-  progressContainer: {
+  rewardContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
+  },
+  rewardText: {
+    marginLeft: 4,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  questDescription: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  progressContainer: {
+    marginBottom: 12,
   },
   progressBar: {
-    flex: 1,
     height: 6,
+    backgroundColor: '#E2E8F0',
     borderRadius: 3,
+    marginBottom: 4,
     overflow: 'hidden',
   },
   progressFill: {
@@ -482,40 +368,52 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressText: {
-    fontSize: 14,
-    width: 40,
+    fontSize: 12,
     textAlign: 'right',
   },
-  questButton: {
-    marginTop: 8,
+  questFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  completionGuide: {
-    position: 'absolute',
-    bottom: -5,
-    right: -5,
-  },
-  newBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 80,
-    backgroundColor: '#FF3B30',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    zIndex: 1,
-  },
-  newBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  timerContainer: {
+  timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
-  timerText: {
+  timeText: {
+    marginLeft: 4,
     fontSize: 12,
-    fontWeight: '500',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 16,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  guideCharacter: {
+    marginRight: -8,
+    marginTop: -10,
+    transform: [{ scaleX: -1 }],
+  },
+  guideMessageContainer: {
+    position: 'absolute',
+    top: 110,
+    right: 16,
+    left: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 12,
+    padding: 8,
+    zIndex: 1,
+  },
+  guideMessage: {
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#FFFFFF',
   },
 });

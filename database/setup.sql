@@ -91,19 +91,71 @@ CREATE TABLE venues (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Drop and recreate the issues table with proper PostGIS support
+DROP TABLE IF EXISTS issues CASCADE;
+
 CREATE TABLE issues (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
-    location GEOGRAPHY(POINT) NOT NULL,
+    location geometry(Point, 4326) NOT NULL,
     user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     category TEXT NOT NULL,
     photos TEXT[],
     verification_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT status_check CHECK (status IN ('open', 'in_progress', 'resolved'))
 );
+
+-- Create spatial index for better query performance
+CREATE INDEX issues_location_idx ON issues USING GIST (location);
+
+-- Enable RLS
+ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Users can view all issues"
+    ON issues FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Users can create issues"
+    ON issues FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+CREATE POLICY "Users can update own issues"
+    ON issues FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+-- Create or replace the function to get issues in bounds
+CREATE OR REPLACE FUNCTION get_issues_in_bounds(
+    min_lat DOUBLE PRECISION,
+    min_lng DOUBLE PRECISION,
+    max_lat DOUBLE PRECISION,
+    max_lng DOUBLE PRECISION
+) RETURNS SETOF issues AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM issues
+    WHERE ST_Intersects(
+        location,
+        ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Update the trigger for updated_at
+DROP TRIGGER IF EXISTS update_issues_updated_at ON issues;
+CREATE TRIGGER update_issues_updated_at
+    BEFORE UPDATE ON issues
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TABLE issue_verifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -132,7 +184,6 @@ CREATE TABLE lost_items (
 -- Create indexes for better query performance
 CREATE INDEX venues_coords_idx ON venues(latitude, longitude);
 CREATE INDEX lost_items_coords_idx ON lost_items(latitude, longitude);
-CREATE INDEX issues_location_idx ON issues USING gist (location);
 CREATE INDEX lost_items_status_idx ON lost_items(status);
 
 -- Enable RLS on all tables
@@ -142,7 +193,6 @@ ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE point_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE venues ENABLE ROW LEVEL SECURITY;
-ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE issue_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lost_items ENABLE ROW LEVEL SECURITY;
 
@@ -198,13 +248,6 @@ CREATE POLICY "Users can view own transactions" ON point_transactions
     FOR SELECT TO authenticated
     USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can view all issues" ON issues
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Users can manage own issues" ON issues
-    FOR ALL TO authenticated
-    USING (auth.uid() = user_id);
-
 CREATE POLICY "Anyone can view venues" ON venues
     FOR SELECT TO authenticated USING (true);
 
@@ -223,37 +266,6 @@ CREATE POLICY "Users can update own lost items" ON lost_items
     WITH CHECK (auth.uid() = user_id);
 
 -- Create helper functions
-CREATE OR REPLACE FUNCTION get_issues_in_bounds(
-    min_lat DOUBLE PRECISION,
-    min_lng DOUBLE PRECISION,
-    max_lat DOUBLE PRECISION,
-    max_lng DOUBLE PRECISION
-) RETURNS SETOF issues AS $$
-BEGIN
-    RETURN QUERY
-    SELECT *
-    FROM issues
-    WHERE ST_Intersects(
-        location::geometry,
-        ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)
-    );
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION increment_coins(user_id UUID, amount INTEGER)
-RETURNS INTEGER AS $$
-DECLARE
-    new_amount INTEGER;
-BEGIN
-    UPDATE user_profiles
-    SET civic_coins = civic_coins + amount
-    WHERE id = user_id
-    RETURNING civic_coins INTO new_amount;
-    
-    RETURN new_amount;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION get_full_profile(user_id UUID)
 RETURNS jsonb AS $$
 DECLARE
@@ -410,16 +422,6 @@ CREATE TRIGGER update_user_rank_trigger
 
 CREATE TRIGGER update_venues_updated_at
     BEFORE UPDATE ON venues
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_issues_updated_at
-    BEFORE UPDATE ON issues
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_lost_items_updated_at
-    BEFORE UPDATE ON lost_items
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -680,3 +682,508 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION get_nearby_lost_items(double precision, double precision, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_nearby_found_items(double precision, double precision, integer) TO authenticated;
+
+-- Add new tables for core features
+CREATE TABLE categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    icon TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE routes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    description TEXT,
+    creator_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'active',
+    privacy TEXT NOT NULL DEFAULT 'public',
+    total_distance INTEGER,
+    estimated_time INTEGER,
+    difficulty TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE waypoints (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    route_id UUID REFERENCES routes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    sequence_number INTEGER NOT NULL,
+    poi_type TEXT,
+    photos TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE route_participants (
+    route_id UUID REFERENCES routes(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member',
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (route_id, user_id)
+);
+
+CREATE TABLE civic_gyms (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    level INTEGER NOT NULL DEFAULT 1,
+    points INTEGER NOT NULL DEFAULT 0,
+    owner_id UUID REFERENCES user_profiles(id),
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE pokestops (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    last_interaction TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE issue_nests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    category_id UUID REFERENCES categories(id),
+    severity TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE solutions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    issue_id UUID REFERENCES issues(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'proposed',
+    upvotes INTEGER NOT NULL DEFAULT 0,
+    photos TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE comments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    content TEXT NOT NULL,
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    issue_id UUID REFERENCES issues(id) ON DELETE CASCADE,
+    solution_id UUID REFERENCES solutions(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Modify existing venues table
+DROP TABLE IF EXISTS venues CASCADE;
+CREATE TABLE venues (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    type TEXT NOT NULL,
+    verified BOOLEAN NOT NULL DEFAULT FALSE,
+    photos TEXT[],
+    operating_hours JSONB,
+    contact_info JSONB,
+    amenities TEXT[],
+    rating DECIMAL(3,2),
+    review_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Modify existing lost_items table
+DROP TABLE IF EXISTS lost_items CASCADE;
+CREATE TABLE lost_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    venue_id UUID REFERENCES venues(id),
+    status TEXT NOT NULL DEFAULT 'lost',
+    reward_coins INTEGER,
+    item_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    photos TEXT[],
+    contact_info JSONB NOT NULL,
+    last_seen TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Create indexes for spatial queries
+CREATE INDEX venues_location_idx ON venues USING btree (latitude, longitude);
+CREATE INDEX lost_items_location_idx ON lost_items USING btree (latitude, longitude);
+CREATE INDEX civic_gyms_location_idx ON civic_gyms USING btree (latitude, longitude);
+CREATE INDEX pokestops_location_idx ON pokestops USING btree (latitude, longitude);
+CREATE INDEX issue_nests_location_idx ON issue_nests USING btree (latitude, longitude);
+
+-- Create function for nearby venues
+CREATE OR REPLACE FUNCTION get_nearby_points_of_interest(
+    lat double precision,
+    lng double precision,
+    radius_meters integer DEFAULT 1000
+)
+RETURNS TABLE (
+    id UUID,
+    name TEXT,
+    type TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    distance_meters DOUBLE PRECISION
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        v.id,
+        v.name,
+        'venue'::TEXT as type,
+        v.latitude,
+        v.longitude,
+        (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(v.latitude)) *
+                cos(radians(v.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(v.latitude))
+            )
+        )::DOUBLE PRECISION as distance_meters
+    FROM venues v
+    WHERE (
+        6371000 * acos(
+            cos(radians(lat)) * cos(radians(v.latitude)) *
+            cos(radians(v.longitude) - radians(lng)) +
+            sin(radians(lat)) * sin(radians(v.latitude))
+        ) <= radius_meters
+    
+    UNION ALL
+    
+    SELECT 
+        g.id,
+        g.name,
+        'gym'::TEXT as type,
+        g.latitude,
+        g.longitude,
+        (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(g.latitude)) *
+                cos(radians(g.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(g.latitude))
+            )
+        )::DOUBLE PRECISION as distance_meters
+    FROM civic_gyms g
+    WHERE (
+        6371000 * acos(
+            cos(radians(lat)) * cos(radians(g.latitude)) *
+            cos(radians(g.longitude) - radians(lng)) +
+            sin(radians(lat)) * sin(radians(g.latitude))
+        ) <= radius_meters
+    
+    UNION ALL
+    
+    SELECT 
+        p.id,
+        p.name,
+        'pokestop'::TEXT as type,
+        p.latitude,
+        p.longitude,
+        (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(p.latitude)) *
+                cos(radians(p.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(p.latitude))
+            )
+        )::DOUBLE PRECISION as distance_meters
+    FROM pokestops p
+    WHERE (
+        6371000 * acos(
+            cos(radians(lat)) * cos(radians(p.latitude)) *
+            cos(radians(p.longitude) - radians(lng)) +
+            sin(radians(lat)) * sin(radians(p.latitude))
+        ) <= radius_meters
+    
+    ORDER BY distance_meters;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Insert default categories
+INSERT INTO categories (name, description, icon) VALUES
+    ('Infrastructure', 'Road, building, and utility issues', 'construct'),
+    ('Environment', 'Environmental and cleanliness issues', 'leaf'),
+    ('Safety', 'Public safety and security concerns', 'shield'),
+    ('Community', 'Social and community-related matters', 'people'),
+    ('Transportation', 'Public transport and traffic issues', 'bus'),
+    ('Health', 'Public health and sanitation issues', 'medkit'),
+    ('Education', 'Educational facility issues', 'school'),
+    ('Recreation', 'Parks and recreation facility issues', 'football');
+
+-- Function to generate daily quests for a user
+CREATE OR REPLACE FUNCTION generate_daily_quests(user_id_param UUID)
+RETURNS SETOF quests AS $$
+DECLARE
+    quest_record quests%ROWTYPE;
+    quest_count INTEGER;
+    quest_types TEXT[] := ARRAY['verify_issues', 'report_issues', 'help_found_items', 'visit_locations'];
+    difficulties INTEGER[] := ARRAY[1, 2, 3];
+    selected_type TEXT;
+    selected_difficulty INTEGER;
+BEGIN
+    -- First, expire old active quests
+    UPDATE quests
+    SET status = 'expired'
+    WHERE user_id = user_id_param
+    AND status = 'active'
+    AND expires_at < NOW();
+
+    -- Check if user already has active quests
+    SELECT COUNT(*)
+    INTO quest_count
+    FROM quests
+    WHERE user_id = user_id_param
+    AND status = 'active';
+
+    -- If user has no active quests, generate new ones
+    IF quest_count = 0 THEN
+        -- Always create a daily login quest
+        INSERT INTO quests (
+            user_id,
+            title,
+            description,
+            reward_amount,
+            progress,
+            required,
+            expires_at,
+            status,
+            type
+        ) VALUES (
+            user_id_param,
+            'Daily Check-in',
+            'Log in to the app today',
+            50,
+            0,
+            1,
+            (DATE_TRUNC('day', NOW()) + INTERVAL '1 day' - INTERVAL '1 second')::TIMESTAMP,
+            'active',
+            'daily_login'
+        ) RETURNING * INTO quest_record;
+        
+        RETURN NEXT quest_record;
+
+        -- Generate 2 random quests
+        FOR i IN 1..2 LOOP
+            -- Select a random quest type and difficulty
+            selected_type := quest_types[1 + floor(random() * array_length(quest_types, 1))::INTEGER];
+            selected_difficulty := difficulties[1 + floor(random() * array_length(difficulties, 1))::INTEGER];
+
+            INSERT INTO quests (
+                user_id,
+                title,
+                description,
+                reward_amount,
+                progress,
+                required,
+                expires_at,
+                status,
+                type
+            )
+            SELECT
+                user_id_param,
+                CASE selected_type
+                    WHEN 'verify_issues' THEN 'Verify Community Issues'
+                    WHEN 'report_issues' THEN 'Report Community Issues'
+                    WHEN 'help_found_items' THEN 'Help Find Lost Items'
+                    WHEN 'visit_locations' THEN 'Visit New Locations'
+                END,
+                CASE selected_type
+                    WHEN 'verify_issues' THEN 'Verify ' || (selected_difficulty * 2)::TEXT || ' reported issues in your area'
+                    WHEN 'report_issues' THEN 'Report ' || selected_difficulty::TEXT || ' new community issues'
+                    WHEN 'help_found_items' THEN 'Help locate ' || selected_difficulty::TEXT || ' lost items'
+                    WHEN 'visit_locations' THEN 'Visit ' || (selected_difficulty * 3)::TEXT || ' new locations'
+                END,
+                CASE selected_difficulty
+                    WHEN 1 THEN 100
+                    WHEN 2 THEN 200
+                    WHEN 3 THEN 300
+                END,
+                0,
+                CASE selected_type
+                    WHEN 'verify_issues' THEN selected_difficulty * 2
+                    WHEN 'report_issues' THEN selected_difficulty
+                    WHEN 'help_found_items' THEN selected_difficulty
+                    WHEN 'visit_locations' THEN selected_difficulty * 3
+                END,
+                (DATE_TRUNC('day', NOW()) + INTERVAL '1 day' - INTERVAL '1 second')::TIMESTAMP,
+                'active',
+                selected_type
+            ) RETURNING * INTO quest_record;
+
+            RETURN NEXT quest_record;
+        END LOOP;
+    ELSE
+        -- Return existing active quests
+        RETURN QUERY
+        SELECT *
+        FROM quests
+        WHERE user_id = user_id_param
+        AND status = 'active'
+        ORDER BY created_at DESC;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to update quest progress
+CREATE OR REPLACE FUNCTION update_quest_progress(
+    quest_id_param UUID,
+    progress_increment INTEGER DEFAULT 1
+)
+RETURNS quests AS $$
+DECLARE
+    updated_quest quests;
+    reward INTEGER;
+BEGIN
+    -- Update the quest progress
+    UPDATE quests
+    SET 
+        progress = LEAST(progress + progress_increment, required),
+        status = CASE 
+            WHEN progress + progress_increment >= required THEN 'completed'
+            ELSE status
+        END,
+        updated_at = NOW()
+    WHERE id = quest_id_param
+    RETURNING * INTO updated_quest;
+
+    -- If quest was just completed, award the coins
+    IF updated_quest.status = 'completed' AND updated_quest.progress >= updated_quest.required THEN
+        -- Add coin transaction
+        INSERT INTO point_transactions (
+            user_id,
+            amount,
+            type
+        ) VALUES (
+            updated_quest.user_id,
+            updated_quest.reward_amount,
+            'quest_completion'
+        );
+
+        -- Update user's coin balance
+        UPDATE user_profiles
+        SET 
+            civic_coins = civic_coins + updated_quest.reward_amount,
+            updated_at = NOW()
+        WHERE id = updated_quest.user_id;
+    END IF;
+
+    RETURN updated_quest;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION generate_daily_quests(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_quest_progress(UUID, INTEGER) TO authenticated;
+
+-- Enable RLS on point_transactions
+ALTER TABLE point_transactions ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for point_transactions
+CREATE POLICY "Users can view their own transactions"
+    ON point_transactions FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Service role can manage all transactions"
+    ON point_transactions
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can create transactions"
+    ON point_transactions FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+-- Drop any existing create_issue functions
+DROP FUNCTION IF EXISTS create_issue(text, text, text, double precision, double precision, text[], uuid, text);
+DROP FUNCTION IF EXISTS create_issue(text, text, text, jsonb, text[], uuid, text);
+
+-- Create a single, well-defined create_issue function
+CREATE OR REPLACE FUNCTION create_issue(
+    p_title TEXT,
+    p_description TEXT,
+    p_category TEXT,
+    p_longitude DOUBLE PRECISION,
+    p_latitude DOUBLE PRECISION,
+    p_photos TEXT[],
+    p_user_id UUID,
+    p_status TEXT DEFAULT 'open'
+)
+RETURNS issues AS $$
+DECLARE
+    v_issue issues;
+BEGIN
+    -- Insert the issue with proper geometry conversion
+    INSERT INTO issues (
+        title,
+        description,
+        category,
+        location,
+        photos,
+        user_id,
+        status
+    ) VALUES (
+        p_title,
+        p_description,
+        p_category,
+        ST_SetSRID(ST_MakePoint(p_longitude, p_latitude), 4326),
+        p_photos,
+        p_user_id,
+        p_status
+    )
+    RETURNING * INTO v_issue;
+
+    -- Award points for creating an issue in a separate transaction
+    BEGIN
+        INSERT INTO point_transactions (
+            user_id,
+            amount,
+            type
+        ) VALUES (
+            p_user_id,
+            50,
+            'issue_report'
+        );
+
+        -- Update user's civic coins
+        UPDATE user_profiles
+        SET civic_coins = civic_coins + 50
+        WHERE id = p_user_id;
+    EXCEPTION WHEN OTHERS THEN
+        -- Log the error but don't fail the issue creation
+        RAISE NOTICE 'Failed to award points: %', SQLERRM;
+    END;
+
+    RETURN v_issue;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission on the function
+GRANT EXECUTE ON FUNCTION create_issue(TEXT, TEXT, TEXT, DOUBLE PRECISION, DOUBLE PRECISION, TEXT[], UUID, TEXT) TO authenticated;

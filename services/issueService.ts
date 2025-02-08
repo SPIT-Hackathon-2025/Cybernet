@@ -26,11 +26,21 @@ export const issueService = {
   },
 
   async createIssue(issue: Partial<Issue>): Promise<Issue> {
+    if (!issue.location || !issue.location.coordinates) {
+      throw new Error('Location coordinates are required');
+    }
+
     const { data, error } = await supabase
-      .from('issues')
-      .insert([issue])
-      .select()
-      .single();
+      .rpc('create_issue', {
+        p_title: issue.title,
+        p_description: issue.description,
+        p_category: issue.category,
+        p_longitude: issue.location.coordinates[0],
+        p_latitude: issue.location.coordinates[1],
+        p_photos: issue.photos,
+        p_user_id: issue.user_id,
+        p_status: issue.status
+      });
 
     if (error) throw error;
     return data;

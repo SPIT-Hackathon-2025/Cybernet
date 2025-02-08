@@ -99,8 +99,9 @@ export type QuestType =
   | 'visit_locations'
   | 'daily_login';
 
-export type Quest = {
+export interface Quest {
   id: string;
+  user_id: string;
   title: string;
   description: string;
   reward_amount: number;
@@ -109,9 +110,11 @@ export type Quest = {
   expires_at: string;
   status: 'active' | 'completed' | 'expired';
   type: QuestType;
+  created_at: string;
+  updated_at: string;
   isNew?: boolean;
   completed?: boolean;
-};
+}
 
 export type QuestAction = {
   type: 'report_issue' | 'verify_issue' | 'resolve_issue';

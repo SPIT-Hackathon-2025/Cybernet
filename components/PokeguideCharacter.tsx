@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-type Emotion = 'angry' | 'announcing' | 'concerned-asking' | 'confused' | 'curious' | 'explaining' | 'happy-with-football' | 'shouting-in-anger' | 'shouting' | 'thinking';
+export type Emotion = 'angry' | 'announcing' | 'concerned-asking' | 'confused' | 'curious' | 'explaining' | 'happy-with-football' | 'shouting-in-anger' | 'shouting' | 'thinking';
 
 interface PokeguideCharacterProps {
   emotion?: Emotion;
