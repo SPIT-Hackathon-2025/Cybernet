@@ -1,74 +1,146 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View, Alert, Platform } from 'react-native';
+import MapView, { Marker, Region } from 'react-native-maps';
+import { useAuth } from '@/contexts/AuthContext';
+import { Issue } from '@/types';
+import { issueService } from '@/services/issueService';
+import { FAB } from '@/components/ui/FAB';
+import { router } from 'expo-router';
+import * as Location from 'expo-location';
+import { Colors } from '@/constants/Colors';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function MapScreen() {
+  const { user } = useAuth();
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [region, setRegion] = useState<Region>({
+    latitude: 37.78825,
+    longitude: -122.4324,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
 
-export default function HomeScreen() {
+  useEffect(() => {
+    (async () => {
+      try {
+        // Request foreground location permission
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Permission to access location was denied');
+          Alert.alert(
+            'Location Permission Required',
+            'Please enable location services to use all features of the app.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        // Get current location
+        let currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setLocation(currentLocation);
+
+        // Update region with current location
+        setRegion({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
+
+        // Start location updates
+        if (Platform.OS !== 'web') {
+          Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.Balanced,
+              timeInterval: 5000,
+              distanceInterval: 10,
+            },
+            (newLocation) => {
+              setLocation(newLocation);
+            }
+          );
+        }
+      } catch (error) {
+        console.error('Error getting location:', error);
+        setErrorMsg('Error getting location');
+      }
+    })();
+
+    // Set up realtime subscription for issues
+    const subscription = issueService.subscribeToIssues((newIssue) => {
+      setIssues(current => [...current, newIssue]);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const loadIssuesInView = async (newRegion: Region) => {
+    try {
+      const bounds = {
+        north: newRegion.latitude + newRegion.latitudeDelta / 2,
+        south: newRegion.latitude - newRegion.latitudeDelta / 2,
+        east: newRegion.longitude + newRegion.longitudeDelta / 2,
+        west: newRegion.longitude - newRegion.longitudeDelta / 2,
+      };
+      const data = await issueService.getIssues(bounds);
+      setIssues(data);
+    } catch (error) {
+      console.error('Error loading issues:', error);
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <MapView
+        style={styles.map}
+        region={region}
+        showsUserLocation={true}
+        showsMyLocationButton={true}
+        onRegionChangeComplete={(newRegion) => {
+          setRegion(newRegion);
+          loadIssuesInView(newRegion);
+        }}
+      >
+        {issues.map((issue) => (
+          <Marker
+            key={issue.id}
+            coordinate={{
+              latitude: issue.location.latitude,
+              longitude: issue.location.longitude,
+            }}
+            title={issue.title}
+            description={issue.description}
+            onPress={() => router.push(`/issue/${issue.id}`)}
+          />
+        ))}
+      </MapView>
+      <FAB
+        icon="add"
+        onPress={() => router.push('/issue/create')}
+        style={styles.fab}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  map: {
+    width: '100%',
+    height: '100%',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  fab: {
     position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Colors.light.primary,
   },
 });

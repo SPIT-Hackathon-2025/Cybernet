@@ -1,41 +1,44 @@
-export type Issue = {
+export interface Issue {
   id: string;
   title: string;
   description: string;
+  status: 'pending' | 'verified' | 'in_progress' | 'resolved';
   location: {
     latitude: number;
     longitude: number;
   };
-  status: 'pending' | 'verified' | 'in_progress' | 'resolved';
   reporter_id: string;
-  photos: string[];
-  category: string;
   created_at: string;
-  updated_at: string;
-  verification_count: number;
-};
+  photos?: string[];
+  category?: string;
+}
 
-export type UserProfile = {
+export interface Bounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+export interface UserProfile {
   id: string;
   username: string;
-  email: string;
-  avatar_url?: string;
+  avatar_url: string;
   trainer_level: number;
   civic_coins: number;
-  badges: Badge[];
-  rank: TrainerRank;
   trust_score: number;
+  rank: string;
+  badges: Badge[];
   created_at: string;
-};
+  updated_at: string;
+}
 
-export type Badge = {
+export interface Badge {
   id: string;
   name: string;
   description: string;
   icon_url: string;
-  category: 'environmental' | 'infrastructure' | 'safety' | 'community';
-  level: 'bronze' | 'silver' | 'gold' | 'platinum';
-};
+}
 
 export type TrainerRank = 
   | 'Novice Trainer' 

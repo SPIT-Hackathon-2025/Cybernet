@@ -33,7 +33,14 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to show nearby issues and verify your reports.",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to show nearby issues and verify your reports."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

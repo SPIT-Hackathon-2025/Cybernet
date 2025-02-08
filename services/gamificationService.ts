@@ -3,11 +3,23 @@ import { Badge, Quest, UserProfile } from '@/types';
 
 export const gamificationService = {
   async awardPoints(userId: string, amount: number, reason: string) {
-    const { data, error } = await supabase.rpc('award_points', {
-      p_user_id: userId,
-      p_amount: amount,
-      p_reason: reason
-    });
+    const { data: profile, error: fetchError } = await supabase
+      .from('user_profiles')
+      .select('civic_coins')
+      .eq('id', userId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update({
+        civic_coins: (profile?.civic_coins || 0) + amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;
@@ -16,7 +28,7 @@ export const gamificationService = {
   async getUserProfile(userId: string): Promise<UserProfile> {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('*, badges(*)')
+      .select('*')
       .eq('id', userId)
       .single();
 

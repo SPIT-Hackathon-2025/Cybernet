@@ -28,10 +28,10 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(onboarding)" options={{ animation: 'fade' }} />
-          <Stack.Screen name="(auth)" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="(tabs)" options={{ animation: 'fade_from_bottom' }} />
+        <Stack>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
       </ThemeProvider>
     </AuthProvider>

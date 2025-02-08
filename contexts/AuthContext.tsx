@@ -74,20 +74,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // Profile doesn't exist, create one using the secure function
-          const { data: newProfile, error: createError } = await supabase
-            .rpc('create_new_profile', {
-              user_id: userId,
-              user_name: user?.user_metadata?.username || `Trainer${userId.substring(0, 6)}`
-            });
+          // Profile doesn't exist, try to create one
+          try {
+            const { data: newProfile, error: createError } = await supabase
+              .from('user_profiles')
+              .upsert([{  // Changed from insert to upsert
+                id: userId,
+                username: user?.user_metadata?.username || `Trainer${userId.substring(0, 6)}`,
+                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+                trainer_level: 1,
+                civic_coins: 0,
+                trust_score: 0,
+                rank: 'Novice Trainer',
+                badges: []
+              }], {
+                onConflict: 'id',  // Specify the conflict handling
+                ignoreDuplicates: true
+              })
+              .select()
+              .single();
 
-          if (createError) {
-            console.error('Error creating profile:', createError);
+            if (createError) {
+              console.error('Error creating profile:', createError);
+              return;
+            }
+
+            setUserProfile(newProfile);
+            return;
+          } catch (createError: any) {
+            // If creation failed, try one more time to fetch the profile
+            const { data: retryProfile, error: retryError } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('id', userId)
+              .single();
+            
+            if (!retryError && retryProfile) {
+              setUserProfile(retryProfile);
+              return;
+            }
+            
+            console.error('Final error in profile creation:', createError);
             return;
           }
-
-          setUserProfile(newProfile);
-          return;
         }
         
         console.error('Error loading profile:', error);
@@ -156,12 +185,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
-        // Create user profile using the secure function
+        // Create user profile directly instead of using RPC
         const { error: profileError } = await supabase
-          .rpc('create_new_profile', {
-            user_id: data.user.id,
-            user_name: username
-          });
+          .from('user_profiles')
+          .insert([{
+            id: data.user.id,
+            username: username,
+            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+            trainer_level: 1,
+            civic_coins: 0,
+            trust_score: 0,
+            rank: 'Novice Trainer',
+            badges: []
+          }]);
 
         if (profileError) {
           console.error('Error creating profile:', profileError);
@@ -170,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       Alert.alert(
         'Success',
-        'Account created successfully! You can now sign in.'
+        'Account created successfully! Please check your email to verify your account.'
       );
       router.replace('/(auth)/sign-in');
     } catch (error: any) {

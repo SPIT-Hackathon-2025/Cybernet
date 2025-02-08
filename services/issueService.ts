@@ -2,7 +2,30 @@ import { supabase } from '@/lib/supabase';
 import { Issue } from '@/types';
 
 export const issueService = {
-  async createIssue(issue: Omit<Issue, 'id' | 'created_at' | 'updated_at' | 'verification_count'>) {
+  async getAllIssues(): Promise<Issue[]> {
+    const { data, error } = await supabase
+      .from('issues')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getIssues(bounds: { north: number; south: number; east: number; west: number }): Promise<Issue[]> {
+    const { data, error } = await supabase
+      .rpc('get_issues_in_bounds', {
+        min_lng: bounds.west,
+        min_lat: bounds.south,
+        max_lng: bounds.east,
+        max_lat: bounds.north
+      });
+
+    if (error) throw error;
+    return data;
+  },
+
+  async createIssue(issue: Partial<Issue>): Promise<Issue> {
     const { data, error } = await supabase
       .from('issues')
       .insert([issue])
@@ -13,32 +36,40 @@ export const issueService = {
     return data;
   },
 
-  async getIssues(bounds: {
-    north: number;
-    south: number;
-    east: number;
-    west: number;
-  }) {
+  subscribeToIssues(callback: (issue: Issue) => void) {
+    return supabase
+      .channel('public:issues')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'issues'
+        },
+        (payload) => {
+          callback(payload.new as Issue);
+        }
+      )
+      .subscribe();
+  },
+
+  async getIssueById(id: string): Promise<Issue> {
     const { data, error } = await supabase
       .from('issues')
       .select('*')
-      .filter('location', 'contained_by', `POLYGON((
-        ${bounds.west} ${bounds.south},
-        ${bounds.east} ${bounds.south},
-        ${bounds.east} ${bounds.north},
-        ${bounds.west} ${bounds.north},
-        ${bounds.west} ${bounds.south}
-      ))`);
+      .eq('id', id)
+      .single();
 
     if (error) throw error;
     return data;
   },
 
-  async getIssueById(id: string) {
+  async updateIssue(id: string, updates: Partial<Issue>): Promise<Issue> {
     const { data, error } = await supabase
       .from('issues')
-      .select('*')
+      .update(updates)
       .eq('id', id)
+      .select()
       .single();
 
     if (error) throw error;
