@@ -6,7 +6,7 @@ const config: ExpoConfig = {
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
-  scheme: 'myapp',
+  scheme: 'pokemongo-community',
   userInterfaceStyle: 'automatic',
   splash: {
     image: './assets/images/splash-icon.png',
@@ -14,18 +14,28 @@ const config: ExpoConfig = {
     backgroundColor: '#ffffff'
   },
   ios: {
-    supportsTablet: true
+    supportsTablet: true,
+    bundleIdentifier: 'com.pokemongo.community',
+    config: {
+      usesNonExemptEncryption: false
+    }
   },
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/images/adaptive-icon.png',
       backgroundColor: '#ffffff'
-    }
+    },
+    package: 'com.pokemongo.community'
   },
   plugins: [
     'expo-router',
-    'expo-build-properties'
-  ]
+    'expo-build-properties',
+  ],
+  extra: {
+    eas: {
+      projectId: "your-project-id"
+    }
+  }
 };
 
 export default config; 

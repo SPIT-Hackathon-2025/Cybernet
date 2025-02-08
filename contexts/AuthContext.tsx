@@ -1,18 +1,23 @@
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AuthError } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { UserProfile } from '@/types';
 import { Alert } from 'react-native';
+import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -24,61 +29,141 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initialize auth state
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error('Error getting session:', error.message);
         return;
       }
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadUserProfile(session.user.id);
-      }
-      setLoading(false);
+      handleAuthStateChange('INITIAL', session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await loadUserProfile(session.user.id);
-      } else {
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     return () => subscription.unsubscribe();
   }, []);
 
+  const handleAuthStateChange = async (event: string, session: Session | null) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+    
+    if (session?.user) {
+      await loadUserProfile(session.user.id);
+      if (event === 'SIGNED_IN') {
+        router.replace('/(tabs)');
+      }
+    } else {
+      setUserProfile(null);
+      if (event === 'SIGNED_OUT') {
+        router.replace('/(auth)/sign-in');
+      }
+    }
+    
+    setLoading(false);
+  };
+
   const loadUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      setUserProfile(data);
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      if (!existingProfile) {
+        const defaultProfile = {
+          id: userId,
+          username: user?.email?.split('@')[0] || 'Trainer',
+          trainer_level: 1,
+          civic_coins: 0,
+          trust_score: 0,
+          rank: 'Novice Trainer',
+          badges: [],
+          created_at: new Date().toISOString(),
+        };
+
+        const { data: newProfile, error: createError } = await supabase
+          .from('user_profiles')
+          .insert([defaultProfile])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        setUserProfile(newProfile);
+      } else {
+        setUserProfile(existingProfile);
+      }
     } catch (error: any) {
-      console.error('Error loading user profile:', error.message);
-      Alert.alert('Error', 'Failed to load user profile');
+      console.error('Error loading/creating user profile:', error.message);
+      Alert.alert('Profile Error', 'Failed to load user profile');
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const handleAuthError = (error: AuthError, action: string) => {
+    let message = 'An error occurred';
+    
+    switch (error.message) {
+      case 'Invalid login credentials':
+        message = 'Incorrect email or password';
+        break;
+      case 'Email not confirmed':
+        message = 'Please verify your email address';
+        break;
+      case 'Password should be at least 6 characters':
+        message = 'Password must be at least 6 characters';
+        break;
+      case 'User already registered':
+        message = 'An account with this email already exists';
+        break;
+      default:
+        message = error.message;
+    }
+    
+    Alert.alert(`${action} Error`, message);
+    throw error;
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'pokemongo-community://auth-callback',
+          skipBrowserRedirect: true
+        }
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      handleAuthError(error, 'Google Sign In');
+    }
+  };
+
+  const signUp = async (email: string, password: string, username: string) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            username,
+          },
+        },
       });
+
       if (error) throw error;
-      Alert.alert('Success', 'Check your email for verification link');
+      Alert.alert(
+        'Verification Required',
+        'Please check your email for a verification link'
+      );
+      router.replace('/(auth)/sign-in');
     } catch (error: any) {
-      console.error('Error signing up:', error.message);
-      Alert.alert('Error', error.message);
-      throw error;
+      handleAuthError(error, 'Sign Up');
     }
   };
 
@@ -88,11 +173,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
       });
+
       if (error) throw error;
     } catch (error: any) {
-      console.error('Error signing in:', error.message);
-      Alert.alert('Error', error.message);
-      throw error;
+      handleAuthError(error, 'Sign In');
     }
   };
 
@@ -101,9 +185,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     } catch (error: any) {
-      console.error('Error signing out:', error.message);
-      Alert.alert('Error', error.message);
-      throw error;
+      handleAuthError(error, 'Sign Out');
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'pokemongo-community://reset-password',
+      });
+      if (error) throw error;
+      Alert.alert(
+        'Password Reset',
+        'Check your email for password reset instructions'
+      );
+    } catch (error: any) {
+      handleAuthError(error, 'Password Reset');
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+      if (error) throw error;
+      Alert.alert('Success', 'Your password has been updated');
+    } catch (error: any) {
+      handleAuthError(error, 'Password Update');
     }
   };
 
@@ -122,8 +231,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signUp,
         signIn,
+        signInWithGoogle,
         signOut,
         refreshProfile,
+        resetPassword,
+        updatePassword,
       }}>
       {children}
     </AuthContext.Provider>

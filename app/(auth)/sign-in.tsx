@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { StyleSheet, Image, View, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Image, View, Dimensions, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
 import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/ThemedText';
 import { TextInput } from '@/components/ui/TextInput';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/contexts/AuthContext';
-import Animated, { FadeInDown, FadeInUp, SlideInRight } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -15,14 +15,19 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
     try {
       setLoading(true);
       await signIn(email, password);
     } catch (error) {
-      console.error(error);
+      // Error is handled by AuthContext
     } finally {
       setLoading(false);
     }
@@ -47,20 +52,14 @@ export default function SignInScreen() {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Animated.Image
-              entering={SlideInRight.delay(400)}
-              source={require('@/assets/images/pokeguide/pokeguide-curious.png')}
-              style={styles.mascot}
-              resizeMode="contain"
-            />
           </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
-            <Card style={styles.card}>
-              <ThemedText style={styles.title}>
-                Welcome Back Trainer!
-              </ThemedText>
+          <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.formContainer}>
+            <ThemedText style={styles.title}>
+              Welcome Back Trainer!
+            </ThemedText>
 
+            <View style={styles.inputContainer}>
               <TextInput
                 placeholder="Email"
                 value={email}
@@ -78,22 +77,52 @@ export default function SignInScreen() {
                 style={styles.input}
               />
 
+              <Link href="/reset-password" asChild>
+                <TouchableOpacity>
+                  <ThemedText style={styles.forgotText}>
+                    Forgot Password?
+                  </ThemedText>
+                </TouchableOpacity>
+              </Link>
+            </View>
+
+            <View style={styles.buttonContainer}>
               <Button
                 onPress={handleSignIn}
                 disabled={loading}
                 loading={loading}
                 size="large"
-                style={styles.button}
+                style={styles.signInButton}
               >
                 Sign In
               </Button>
 
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <ThemedText style={styles.dividerText}>or</ThemedText>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <Button
+                onPress={signInWithGoogle}
+                variant="outline"
+                size="large"
+                style={styles.googleButton}
+              >
+                <View style={styles.googleButtonContent}>
+                  <Ionicons name="logo-google" size={20} color="#4285F4" />
+                  <ThemedText style={styles.googleText}>Continue with Google</ThemedText>
+                </View>
+              </Button>
+
               <Link href="/sign-up" asChild>
-                <Button variant="outline" size="medium">
-                  New Trainer? Sign Up
-                </Button>
+                <TouchableOpacity style={styles.signUpLink}>
+                  <ThemedText style={styles.signUpText}>
+                    New Trainer? <ThemedText style={styles.signUpHighlight}>Sign Up</ThemedText>
+                  </ThemedText>
+                </TouchableOpacity>
               </Link>
-            </Card>
+            </View>
           </Animated.View>
         </View>
       </LinearGradient>
@@ -115,45 +144,82 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: height * 0.04,
+    marginBottom: height * 0.06,
   },
   logo: {
     width: width * 0.5,
     height: width * 0.2,
-    marginBottom: height * 0.02,
   },
-  mascot: {
-    width: width * 0.35,
-    height: width * 0.35,
-  },
-  card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
+  formContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
     padding: 24,
-    gap: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#FF5D00',
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#FF5D00',
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 32,
+  },
+  inputContainer: {
+    gap: 16,
+    marginBottom: 24,
   },
   input: {
-    marginBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 0,
+    color: '#FFFFFF',
   },
-  button: {
-    marginTop: 8,
+  forgotText: {
+    color: '#FF5D00',
+    fontSize: 14,
+    textAlign: 'right',
+  },
+  buttonContainer: {
+    gap: 20,
+  },
+  signInButton: {
     backgroundColor: '#FF5D00',
+    borderWidth: 0,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  dividerText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+  },
+  googleButton: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  googleButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  googleText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  signUpLink: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  signUpText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+  },
+  signUpHighlight: {
+    color: '#FF5D00',
+    fontWeight: 'bold',
   },
 }); 

@@ -1,97 +1,145 @@
-import { StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
-import Animated, { 
-  useAnimatedStyle, 
-  withSpring,
-  withSequence,
-  withTiming 
-} from 'react-native-reanimated';
-import { Colors } from '@/constants/Colors';
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+import React from 'react';
+import {
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  StyleProp,
+  View,
+} from 'react-native';
+import { ThemedText } from '../ThemedText';
 
 interface ButtonProps {
-  onPress?: () => void;
   children: React.ReactNode;
-  variant?: 'primary' | 'outline';
+  onPress: () => void;
+  variant?: 'default' | 'outline' | 'ghost';
   size?: 'small' | 'medium' | 'large';
-  loading?: boolean;
   disabled?: boolean;
-  style?: any;
+  loading?: boolean;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 }
 
-export function Button({ 
-  onPress, 
-  children, 
-  variant = 'primary',
+export function Button({
+  children,
+  onPress,
+  variant = 'default',
   size = 'medium',
-  loading,
-  disabled,
-  style 
+  disabled = false,
+  loading = false,
+  style,
+  textStyle,
+  leftIcon,
+  rightIcon,
 }: ButtonProps) {
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(disabled ? 0.95 : 1) }],
-  }));
+  const buttonStyles = [
+    styles.button,
+    styles[`button_${variant}`],
+    styles[`button_${size}`],
+    disabled && styles.button_disabled,
+    style,
+  ];
+
+  const textStyles = [
+    styles.text,
+    styles[`text_${variant}`],
+    styles[`text_${size}`],
+    disabled && styles.text_disabled,
+    textStyle,
+  ];
 
   return (
-    <AnimatedTouchable
+    <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      style={[
-        styles.button,
-        styles[size],
-        variant === 'outline' && styles.outline,
-        disabled && styles.disabled,
-        animatedStyle,
-        style,
-      ]}
+      style={buttonStyles}
     >
-      {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? Colors.primary : '#fff'} />
-      ) : (
-        <Text style={[
-          styles.text,
-          variant === 'outline' && styles.outlineText,
-        ]}>
-          {children}
-        </Text>
-      )}
-    </AnimatedTouchable>
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator color={variant === 'default' ? '#FFFFFF' : '#FF5D00'} />
+        ) : (
+          <>
+            {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
+            <ThemedText style={textStyles}>{children}</ThemedText>
+            {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
+          </>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: Colors.primary,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  outline: {
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leftIcon: {
+    marginRight: 8,
+  },
+  rightIcon: {
+    marginLeft: 8,
+  },
+  button_default: {
+    backgroundColor: '#FF5D00',
+  },
+  button_outline: {
     backgroundColor: 'transparent',
+    borderColor: '#FF5D00',
   },
-  disabled: {
-    opacity: 0.6,
+  button_ghost: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
-  small: {
+  button_small: {
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
-  medium: {
+  button_medium: {
     paddingVertical: 12,
     paddingHorizontal: 24,
   },
-  large: {
+  button_large: {
     paddingVertical: 16,
     paddingHorizontal: 32,
   },
-  text: {
-    color: Colors.text.light,
-    fontSize: 16,
-    fontWeight: '600',
+  button_disabled: {
+    opacity: 0.5,
   },
-  outlineText: {
-    color: Colors.primary,
+  text: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  text_default: {
+    color: '#FFFFFF',
+  },
+  text_outline: {
+    color: '#FF5D00',
+  },
+  text_ghost: {
+    color: '#FF5D00',
+  },
+  text_small: {
+    fontSize: 14,
+  },
+  text_medium: {
+    fontSize: 16,
+  },
+  text_large: {
+    fontSize: 18,
+  },
+  text_disabled: {
+    opacity: 0.7,
   },
 }); 
