@@ -3,15 +3,6 @@ import { StyleSheet, View, ScrollView, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-// Conditionally import MapView
-const MapView = Platform.select({
-  web: () => require('react-native-web-maps').default,
-  default: () => require('react-native-maps').default,
-})();
-const Marker = Platform.select({
-  web: () => require('react-native-web-maps').Marker,
-  default: () => require('react-native-maps').Marker,
-})();
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { TextInput } from '@/components/ui/TextInput';
@@ -20,6 +11,7 @@ import { Colors } from '@/constants/Colors';
 import { issueService } from '@/services/issueService';
 import { useAuth } from '@/contexts/AuthContext';
 import { gamificationService } from '@/services/gamificationService';
+import { Map } from '@/components/Map';
 
 export default function ReportScreen() {
   const { user } = useAuth();
@@ -58,10 +50,13 @@ export default function ReportScreen() {
         title,
         description,
         category,
-        location,
+        location: {
+          type: 'Point',
+          coordinates: [location.longitude, location.latitude]
+        },
         photos,
-        reporter_id: user!.id,
-        status: 'pending',
+        user_id: user!.id,
+        status: 'open',
       });
 
       // Award points for reporting
@@ -133,20 +128,22 @@ export default function ReportScreen() {
 
           <View style={styles.mapContainer}>
             <ThemedText style={styles.label}>Location</ThemedText>
-            <MapView
+            <Map
               style={styles.map}
-              provider={Platform.OS === 'android' ? 'google' : undefined}
               initialRegion={{
                 ...location,
                 latitudeDelta: 0.01,
                 longitudeDelta: 0.01,
               }}
-              onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => 
-                setLocation(e.nativeEvent.coordinate)
-              }
-            >
-              <Marker coordinate={location} />
-            </MapView>
+              markers={[location]}
+              onPress={(e) => {
+                if (Platform.OS === 'web') {
+                  // Handle web map click differently if needed
+                  return;
+                }
+                setLocation(e.nativeEvent.coordinate);
+              }}
+            />
           </View>
 
           <View style={styles.photosContainer}>

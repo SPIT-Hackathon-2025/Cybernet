@@ -255,7 +255,7 @@ export default function LostFoundScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.modalBackground }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LinearGradient
         colors={[theme.primary, theme.secondary]}
         style={styles.header}
@@ -279,8 +279,8 @@ export default function LostFoundScreen() {
 
       <View style={styles.tabContainer}>
         <View style={[styles.tabWrapper, { backgroundColor: theme.modalBackground }]}>
-          <Button 
-            onPress={() => setActiveTab('lost')}
+        <Button 
+          onPress={() => setActiveTab('lost')}
             variant={activeTab === 'lost' ? 'default' : 'ghost'}
             style={[
               styles.tabButton,
@@ -300,9 +300,9 @@ export default function LostFoundScreen() {
                 Lost Items
               </ThemedText>
             </View>
-          </Button>
-          <Button
-            onPress={() => setActiveTab('found')}
+        </Button>
+        <Button
+          onPress={() => setActiveTab('found')}
             variant={activeTab === 'found' ? 'default' : 'ghost'}
             style={[
               styles.tabButton,
@@ -322,7 +322,7 @@ export default function LostFoundScreen() {
                 Found Items
               </ThemedText>
             </View>
-          </Button>
+        </Button>
         </View>
       </View>
 
@@ -350,166 +350,170 @@ export default function LostFoundScreen() {
         }}
         statusBarTranslucent
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-            <ThemedText type="title">Report Lost Item</ThemedText>
-            <Button
-              variant="ghost"
-              onPress={() => {
-                if (loading) return;
-                setIsModalVisible(false);
-                resetForm();
-              }}
-            >
-              <Ionicons name="close" size={24} color={theme.text} />
-            </Button>
-          </View>
-
-          <ScrollView 
-            style={styles.modalContent}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
-            <Card style={styles.formSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>Basic Information</ThemedText>
-              <TextInput
-                label="Title *"
-                value={title}
-                onChangeText={setTitle}
-                placeholder="What did you lose? (e.g., Blue Nike Backpack)"
-                maxLength={100}
-              />
-
-              <TextInput
-                label="Description *"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-                placeholder="Provide detailed description including color, brand, distinguishing features..."
-                maxLength={500}
-                style={styles.textArea}
-              />
-
-              <View style={styles.itemTypeSection}>
-                <ThemedText style={styles.label}>Item Type *</ThemedText>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.itemTypeScroll}
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <View style={[styles.modalWrapper, { backgroundColor: theme.background }]}>
+            <SafeAreaView style={styles.modalContainer}>
+              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+                <ThemedText type="title">Report Lost Item</ThemedText>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (loading) return;
+                    setIsModalVisible(false);
+                    resetForm();
+                  }}
+                  style={styles.closeButton}
                 >
-                  {itemTypes.map((type) => (
-                    <Button
-                      key={type}
-                      variant={itemType === type ? 'default' : 'outline'}
-                      size="small"
-                      style={styles.itemTypeButton}
-                      onPress={() => setItemType(type)}
+                  <Ionicons name="close" size={24} color={theme.text} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                style={styles.modalContent}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                <Card style={styles.formSection}>
+                  <ThemedText type="subtitle" style={styles.sectionTitle}>Basic Information</ThemedText>
+                  <TextInput
+                    label="Title *"
+                    value={title}
+                    onChangeText={setTitle}
+                    placeholder="What did you lose? (e.g., Blue Nike Backpack)"
+                    maxLength={100}
+                  />
+
+                  <TextInput
+                    label="Description *"
+                    value={description}
+                    onChangeText={setDescription}
+                    multiline
+                    numberOfLines={4}
+                    placeholder="Provide detailed description including color, brand, distinguishing features..."
+                    maxLength={500}
+                    style={styles.textArea}
+                  />
+
+                  <View style={styles.itemTypeSection}>
+                    <ThemedText style={styles.label}>Item Type *</ThemedText>
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.itemTypeScroll}
                     >
-                      {type}
-                    </Button>
-                  ))}
-                </ScrollView>
-              </View>
-            </Card>
-
-            <Card style={styles.formSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>Photos</ThemedText>
-              <ThemedText style={styles.helperText} dimmed>
-                Add up to 3 clear photos of your item to help others identify it
-              </ThemedText>
-              <View style={styles.photoGrid}>
-                {[0, 1, 2].map((index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.photoSlot,
-                      { backgroundColor: theme.backgroundDim }
-                    ]}
-                    onPress={photos.length > index ? undefined : pickImage}
-                  >
-                    {photos[index] ? (
-                      <>
-                        <Image 
-                          source={{ uri: photos[index] }}
-                          style={styles.previewImage}
-                        />
-                        <TouchableOpacity
-                          style={styles.removePhoto}
-                          onPress={() => setPhotos(photos.filter((_, i) => i !== index))}
+                      {itemTypes.map((type) => (
+                        <Button
+                          key={type}
+                          variant={itemType === type ? 'default' : 'outline'}
+                          size="small"
+                          style={styles.itemTypeButton}
+                          onPress={() => setItemType(type)}
                         >
-                          <Ionicons name="close-circle" size={24} color={theme.error} />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={styles.addPhotoPlaceholder}>
-                        <Ionicons name="camera" size={24} color={theme.textDim} />
-                        <ThemedText style={styles.addPhotoText} dimmed>
-                          Add Photo
+                          {type}
+                        </Button>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </Card>
+
+                <Card style={styles.formSection}>
+                  <ThemedText type="subtitle" style={styles.sectionTitle}>Photos</ThemedText>
+                  <ThemedText style={styles.helperText} dimmed>
+                    Add up to 3 clear photos of your item to help others identify it
+                  </ThemedText>
+                  <View style={styles.photoGrid}>
+                    {[0, 1, 2].map((index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.photoSlot,
+                          { backgroundColor: theme.backgroundDim }
+                        ]}
+                        onPress={photos.length > index ? undefined : pickImage}
+                      >
+                        {photos[index] ? (
+                          <>
+                            <Image 
+                              source={{ uri: photos[index] }}
+                              style={styles.previewImage}
+                            />
+                            <TouchableOpacity
+                              style={styles.removePhoto}
+                              onPress={() => setPhotos(photos.filter((_, i) => i !== index))}
+                            >
+                              <Ionicons name="close-circle" size={24} color={theme.error} />
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <View style={styles.addPhotoPlaceholder}>
+                            <Ionicons name="camera" size={24} color={theme.textDim} />
+                            <ThemedText style={styles.addPhotoText} dimmed>
+                              Add Photo
+                            </ThemedText>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </Card>
+
+                <Card style={styles.formSection}>
+                  <ThemedText type="subtitle" style={styles.sectionTitle}>Location *</ThemedText>
+                  <ThemedText style={styles.helperText} dimmed>
+                    Select the location where you last saw the item
+                  </ThemedText>
+                  <View style={styles.venueList}>
+                    {nearbyVenues.map(venue => (
+                      <Button
+                        key={venue.id}
+                        variant={selectedVenue?.id === venue.id ? 'default' : 'outline'}
+                        style={styles.venueButton}
+                        onPress={() => setSelectedVenue(venue)}
+                      >
+                        <Ionicons 
+                          name="location" 
+                          size={16} 
+                          color={selectedVenue?.id === venue.id ? theme.modalBackground : theme.primary} 
+                        />
+                        <ThemedText style={selectedVenue?.id === venue.id ? { color: theme.modalBackground } : undefined}>
+                          {venue.name}
                         </ThemedText>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Card>
+                      </Button>
+                    ))}
+                  </View>
+                </Card>
 
-            <Card style={styles.formSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>Location *</ThemedText>
-              <ThemedText style={styles.helperText} dimmed>
-                Select the location where you last saw the item
-              </ThemedText>
-              <View style={styles.venueList}>
-                {nearbyVenues.map(venue => (
-                  <Button
-                    key={venue.id}
-                    variant={selectedVenue?.id === venue.id ? 'default' : 'outline'}
-                    style={styles.venueButton}
-                    onPress={() => setSelectedVenue(venue)}
-                  >
-                    <Ionicons 
-                      name="location" 
-                      size={16} 
-                      color={selectedVenue?.id === venue.id ? theme.modalBackground : theme.primary} 
-                    />
-                    <ThemedText style={selectedVenue?.id === venue.id ? { color: theme.modalBackground } : undefined}>
-                      {venue.name}
-                    </ThemedText>
-                  </Button>
-                ))}
-              </View>
-            </Card>
+                <Card style={styles.formSection}>
+                  <ThemedText type="subtitle" style={styles.sectionTitle}>Contact Information</ThemedText>
+                  <TextInput
+                    label="Email *"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    placeholder="your.email@example.com"
+                    autoCapitalize="none"
+                  />
 
-            <Card style={styles.formSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>Contact Information</ThemedText>
-              <TextInput
-                label="Email *"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                placeholder="your.email@example.com"
-                autoCapitalize="none"
-              />
+                  <TextInput
+                    label="Phone *"
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                    placeholder="+1234567890"
+                  />
+                </Card>
 
-              <TextInput
-                label="Phone *"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                placeholder="+1234567890"
-              />
-            </Card>
-
-            <Button
-              onPress={handleSubmit}
-              loading={loading}
-              disabled={loading}
-              style={styles.submitButton}
-            >
-              Submit Report
-            </Button>
-          </ScrollView>
-        </SafeAreaView>
+                <Button
+                  onPress={handleSubmit}
+                  loading={loading}
+                  disabled={loading}
+                  style={styles.submitButton}
+                >
+                  Submit Report
+                </Button>
+              </ScrollView>
+            </SafeAreaView>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -656,9 +660,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalWrapper: {
+    flex: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -3,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
   modalContainer: {
     flex: 1,
-    zIndex: 1000,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -666,7 +686,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    backgroundColor: 'transparent',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
   },
   modalContent: {
     flex: 1,

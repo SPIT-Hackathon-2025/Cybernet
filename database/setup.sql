@@ -4,17 +4,19 @@ DROP TABLE IF EXISTS achievements CASCADE;
 DROP TABLE IF EXISTS user_achievements CASCADE;
 DROP TABLE IF EXISTS quests CASCADE;
 DROP TABLE IF EXISTS point_transactions CASCADE;
+DROP TABLE IF EXISTS venues CASCADE;
 DROP TABLE IF EXISTS issues CASCADE;
 DROP TABLE IF EXISTS issue_verifications CASCADE;
 DROP TABLE IF EXISTS lost_items CASCADE;
-DROP TABLE IF EXISTS found_items CASCADE;
-DROP TABLE IF EXISTS venues CASCADE;
 
 DROP FUNCTION IF EXISTS increment_coins CASCADE;
 DROP FUNCTION IF EXISTS get_full_profile CASCADE;
 DROP FUNCTION IF EXISTS update_user_rank CASCADE;
 DROP FUNCTION IF EXISTS get_issues_in_bounds CASCADE;
-DROP FUNCTION IF EXISTS get_nearby_verified_venues CASCADE;
+DROP FUNCTION IF EXISTS get_nearby_verified_venues(double precision, double precision, integer);
+DROP FUNCTION IF EXISTS get_nearby_verified_venues(double precision, double precision, double precision);
+DROP FUNCTION IF EXISTS get_nearby_verified_venues(lat double precision, lng double precision, radius_km double precision);
+DROP FUNCTION IF EXISTS get_nearby_verified_venues(lat double precision, lng double precision, radius_meters integer);
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -25,110 +27,111 @@ CREATE TABLE user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     username TEXT UNIQUE NOT NULL,
     avatar_url TEXT,
-    rank TEXT DEFAULT 'Novice Trainer',
-    trainer_level INTEGER DEFAULT 1,
-    civic_coins INTEGER DEFAULT 0,
-    trust_score INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    rank TEXT NOT NULL DEFAULT 'Novice Trainer',
+    trainer_level INTEGER NOT NULL DEFAULT 1,
+    civic_coins INTEGER NOT NULL DEFAULT 0,
+    trust_score INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    email_status email_status DEFAULT 'pending',
+    email_verified_at TIMESTAMPTZ
 );
 
 CREATE TABLE achievements (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    icon TEXT,
-    category TEXT,
-    required_coins INTEGER,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    category TEXT NOT NULL,
+    required_coins INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE user_achievements (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     achievement_id UUID REFERENCES achievements(id) ON DELETE CASCADE,
-    unlocked BOOLEAN DEFAULT FALSE,
+    unlocked BOOLEAN NOT NULL DEFAULT FALSE,
     unlocked_at TIMESTAMPTZ,
-    progress INTEGER DEFAULT 0,
+    progress INTEGER,
     required INTEGER,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, achievement_id)
 );
 
 CREATE TABLE quests (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
-    description TEXT,
+    description TEXT NOT NULL,
     reward_amount INTEGER NOT NULL,
-    progress INTEGER DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
     required INTEGER NOT NULL,
     expires_at TIMESTAMPTZ,
-    status TEXT DEFAULT 'active',
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE point_transactions (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     amount INTEGER NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    type TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE venues (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
+    description TEXT,
     latitude DOUBLE PRECISION NOT NULL,
     longitude DOUBLE PRECISION NOT NULL,
-    address TEXT,
-    is_verified BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    verified BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE issues (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
-    description TEXT,
-    location GEOMETRY(Point, 4326),
-    status TEXT DEFAULT 'pending',
-    reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    photos TEXT[],
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    location GEOGRAPHY(POINT) NOT NULL,
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     category TEXT NOT NULL,
-    verification_count INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    photos TEXT[],
+    verification_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE issue_verifications (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     issue_id UUID REFERENCES issues(id) ON DELETE CASCADE,
-    verifier_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(issue_id, verifier_id)
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(issue_id, user_id)
 );
 
 CREATE TABLE lost_items (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
-    description TEXT,
-    item_type TEXT,
-    location GEOMETRY(Point, 4326),
-    reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    location GEOGRAPHY(POINT) NOT NULL,
+    user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
+    venue_id UUID REFERENCES venues(id),
+    status TEXT NOT NULL DEFAULT 'lost',
     photos TEXT[],
-    contact_info JSONB NOT NULL,
-    status TEXT DEFAULT 'open',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for better query performance
 CREATE INDEX venues_location_idx ON venues USING gist (ST_SetSRID(ST_Point(longitude, latitude), 4326));
+CREATE INDEX issues_location_idx ON issues USING gist (location);
 CREATE INDEX lost_items_location_idx ON lost_items USING gist (location);
+CREATE INDEX issues_status_idx ON issues(status);
 CREATE INDEX lost_items_status_idx ON lost_items(status);
 
 -- Enable RLS on all tables
@@ -137,22 +140,38 @@ ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE point_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE venues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE issues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE issue_verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE venues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lost_items ENABLE ROW LEVEL SECURITY;
 
--- Create RLS policies
-CREATE POLICY "Users can view any profile" ON user_profiles
-    FOR SELECT TO authenticated USING (true);
+-- Drop existing policies for user_profiles
+DROP POLICY IF EXISTS "Users can view any profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Enable insert for authentication service" ON user_profiles;
 
-CREATE POLICY "Users can update own profile" ON user_profiles
-    FOR UPDATE TO authenticated
+-- Create updated policies
+CREATE POLICY "Users can view any profile"
+    ON user_profiles FOR SELECT
+    TO authenticated
+    USING (true);
+
+CREATE POLICY "Users can update their own profile"
+    ON user_profiles FOR UPDATE
+    TO authenticated
     USING (auth.uid() = id)
     WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can insert own profile" ON user_profiles
-    FOR INSERT TO authenticated
+CREATE POLICY "Service role can do everything"
+    ON user_profiles
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Users can insert their own profile"
+    ON user_profiles FOR INSERT
+    TO authenticated
     WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Anyone can view achievements" ON achievements
@@ -183,7 +202,7 @@ CREATE POLICY "Users can view all issues" ON issues
 
 CREATE POLICY "Users can manage own issues" ON issues
     FOR ALL TO authenticated
-    USING (auth.uid() = reporter_id);
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Anyone can view venues" ON venues
     FOR SELECT TO authenticated USING (true);
@@ -195,12 +214,12 @@ CREATE POLICY "Anyone can view lost items" ON lost_items
     FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY "Users can create lost items" ON lost_items
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = reporter_id);
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own lost items" ON lost_items
     FOR UPDATE TO authenticated
-    USING (auth.uid() = reporter_id)
-    WITH CHECK (auth.uid() = reporter_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 -- Create helper functions
 CREATE OR REPLACE FUNCTION get_issues_in_bounds(
@@ -213,26 +232,24 @@ BEGIN
     RETURN QUERY
     SELECT *
     FROM issues
-    WHERE ST_Within(
-        location,
+    WHERE ST_Intersects(
+        location::geometry,
         ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)
-    )
-    AND status != 'resolved'
-    ORDER BY created_at DESC;
+    );
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION increment_coins(user_id UUID, amount INTEGER)
 RETURNS INTEGER AS $$
 DECLARE
-    new_coins INTEGER;
+    new_amount INTEGER;
 BEGIN
-    UPDATE user_profiles 
-    SET civic_coins = civic_coins + amount 
+    UPDATE user_profiles
+    SET civic_coins = civic_coins + amount
     WHERE id = user_id
-    RETURNING civic_coins INTO new_coins;
+    RETURNING civic_coins INTO new_amount;
     
-    RETURN new_coins;
+    RETURN new_amount;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -310,51 +327,87 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Create the function with both parameter options
 CREATE OR REPLACE FUNCTION get_nearby_verified_venues(
-    lat DOUBLE PRECISION,
-    lng DOUBLE PRECISION,
-    radius_meters INTEGER DEFAULT 1000
-) RETURNS SETOF venues AS $$
+    lat double precision,
+    lng double precision,
+    radius_km double precision DEFAULT 1.0
+)
+RETURNS SETOF venues AS $$
+DECLARE
+    radius_meters integer;
 BEGIN
+    -- Convert km to meters
+    radius_meters := (radius_km * 1000)::integer;
+    
     RETURN QUERY
     SELECT *
     FROM venues
-    WHERE is_verified = true
+    WHERE verified = true
     AND ST_DWithin(
-        ST_SetSRID(ST_Point(longitude, latitude), 4326),
-        ST_SetSRID(ST_Point(lng, lat), 4326),
+        location,
+        ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
         radius_meters
     )
     ORDER BY ST_Distance(
-        ST_SetSRID(ST_Point(longitude, latitude), 4326),
-        ST_SetSRID(ST_Point(lng, lat), 4326)
+        location,
+        ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography
     );
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION get_nearby_verified_venues(double precision, double precision, double precision) TO authenticated;
 
 -- Create update_user_rank function
 CREATE OR REPLACE FUNCTION update_user_rank()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE user_profiles
-    SET rank = CASE
-        WHEN NEW.civic_coins >= 5000 THEN 'Elite PokeRanger'
-        WHEN NEW.civic_coins >= 2500 THEN 'District Champion'
-        WHEN NEW.civic_coins >= 1000 THEN 'Community Guardian'
-        WHEN NEW.civic_coins >= 500 THEN 'Issue Scout'
-        ELSE 'Novice Trainer'
-    END
-    WHERE id = NEW.id;
+    IF NEW.civic_coins >= 5000 THEN
+        NEW.rank := 'Elite PokeRanger';
+    ELSIF NEW.civic_coins >= 2500 THEN
+        NEW.rank := 'District Champion';
+    ELSIF NEW.civic_coins >= 1000 THEN
+        NEW.rank := 'Community Guardian';
+    ELSIF NEW.civic_coins >= 500 THEN
+        NEW.rank := 'Issue Scout';
+    ELSE
+        NEW.rank := 'Novice Trainer';
+    END IF;
     
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
+-- Create updated_at trigger function
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
 -- Create triggers
 CREATE TRIGGER update_user_rank_trigger
-    AFTER UPDATE OF civic_coins ON user_profiles
+    BEFORE UPDATE OF civic_coins ON user_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_user_rank();
+
+CREATE TRIGGER update_venues_updated_at
+    BEFORE UPDATE ON venues
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_issues_updated_at
+    BEFORE UPDATE ON issues
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_lost_items_updated_at
+    BEFORE UPDATE ON lost_items
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert default achievements
 INSERT INTO achievements (name, description, icon, category, required_coins) VALUES
@@ -382,8 +435,7 @@ INSERT INTO achievements (name, description, icon, category, required_coins) VAL
     -- Community Achievements
     ('Friendly Face', 'Help 5 community members', 'people', 'Community', 100),
     ('Community Star', 'Organize a community event', 'star', 'Community', 250),
-    ('Local Hero', 'Make a significant impact in your area', 'trophy', 'Community', 500)
-ON CONFLICT (name) DO NOTHING;
+    ('Local Hero', 'Make a significant impact in your area', 'trophy', 'Community', 500);
 
 -- Create Rohan's profile (assuming the auth.users entry exists)
 INSERT INTO user_profiles (id, username, avatar_url)
@@ -395,9 +447,118 @@ FROM
     auth.users 
 WHERE 
     email = 'rohan.pawar@noulez.app'
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT ON CONSTRAINT user_profiles_pkey DO NOTHING;
 
 -- Grant necessary permissions
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+-- Create email status enum
+CREATE TYPE email_status AS ENUM ('pending', 'verified');
+
+-- Create function to handle user creation
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Create user profile for new user immediately
+    INSERT INTO user_profiles (
+        id,
+        username,
+        email_status,
+        avatar_url,
+        rank,
+        trainer_level,
+        civic_coins,
+        trust_score
+    ) VALUES (
+        NEW.id,
+        COALESCE(
+            (NEW.raw_user_meta_data->>'username')::text,
+            SPLIT_PART(NEW.email, '@', 1)
+        ),
+        CASE 
+            WHEN NEW.email_confirmed_at IS NOT NULL THEN 'verified'::email_status 
+            ELSE 'pending'::email_status 
+        END,
+        'https://api.dicebear.com/7.x/avataaars/svg?seed=' || NEW.id,
+        'Novice Trainer',
+        1,
+        50, -- Give initial coins regardless of verification
+        0
+    );
+
+    -- Record the initial coin transaction
+    INSERT INTO point_transactions (
+        user_id,
+        amount,
+        type
+    ) VALUES (
+        NEW.id,
+        50,
+        'welcome_bonus'
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Modify the email verification handler to just update status
+CREATE OR REPLACE FUNCTION handle_email_verification()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update user profile when email is verified
+    IF NEW.email_confirmed_at IS NOT NULL AND OLD.email_confirmed_at IS NULL THEN
+        UPDATE user_profiles
+        SET 
+            email_status = 'verified',
+            email_verified_at = NEW.email_confirmed_at,
+            updated_at = NOW()
+        WHERE id = NEW.id;
+        
+        -- Additional verification bonus
+        INSERT INTO point_transactions (
+            user_id,
+            amount,
+            type
+        ) VALUES (
+            NEW.id,
+            25, -- Bonus for email verification
+            'email_verification_bonus'
+        );
+        
+        -- Update user's civic coins
+        UPDATE user_profiles
+        SET civic_coins = civic_coins + 25
+        WHERE id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Update the policies to allow access regardless of email verification
+DROP POLICY IF EXISTS "Users can update their own profile after email verification" ON user_profiles;
+CREATE POLICY "Users can update their own profile"
+    ON user_profiles FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+-- Create triggers for user management
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_new_user();
+
+DROP TRIGGER IF EXISTS on_auth_user_email_verified ON auth.users;
+CREATE TRIGGER on_auth_user_email_verified
+    AFTER UPDATE ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_email_verification();
+
+-- Add policies for email verification
+CREATE POLICY "Users can view their own email status"
+    ON user_profiles FOR SELECT
+    TO authenticated
+    USING (auth.uid() = id);

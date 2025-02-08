@@ -1,6 +1,6 @@
 import { Session, User, AuthError } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { UserProfile } from '@/types';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
@@ -49,8 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(session?.user ?? null);
     
     if (session?.user) {
-      await loadUserProfile(session.user.id);
-      if (event === 'SIGNED_IN') {
+      // Try to load or create profile
+      const profile = await loadUserProfile(session.user.id);
+      
+      // If we have a session and profile, go to main app regardless of email verification
+      if (profile && (event === 'SIGNED_IN' || event === 'SIGNED_UP' || event === 'TOKEN_REFRESHED')) {
         router.replace('/(tabs)');
       }
     } else {
@@ -74,58 +77,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // Profile doesn't exist, try to create one
-          try {
-            const { data: newProfile, error: createError } = await supabase
-              .from('user_profiles')
-              .upsert([{  // Changed from insert to upsert
-                id: userId,
-                username: user?.user_metadata?.username || `Trainer${userId.substring(0, 6)}`,
-                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
-                trainer_level: 1,
-                civic_coins: 0,
-                trust_score: 0,
-                rank: 'Novice Trainer',
-                badges: []
-              }], {
-                onConflict: 'id',  // Specify the conflict handling
-                ignoreDuplicates: true
-              })
-              .select()
-              .single();
+          // Profile doesn't exist, create one
+          const defaultProfile = {
+            id: userId,
+            username: user?.user_metadata?.username || `Trainer${userId.substring(0, 6)}`,
+            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+            trainer_level: 1,
+            civic_coins: 0,
+            trust_score: 0,
+            rank: 'Novice Trainer'
+          };
 
-            if (createError) {
-              console.error('Error creating profile:', createError);
-              return;
-            }
+          const { data: newProfile, error: createError } = await supabase
+            .from('user_profiles')
+            .upsert([defaultProfile])
+            .select()
+            .single();
 
-            setUserProfile(newProfile);
-            return;
-          } catch (createError: any) {
-            // If creation failed, try one more time to fetch the profile
-            const { data: retryProfile, error: retryError } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('id', userId)
-              .single();
-            
-            if (!retryError && retryProfile) {
-              setUserProfile(retryProfile);
-              return;
-            }
-            
-            console.error('Final error in profile creation:', createError);
-            return;
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            return null;
           }
+
+          setUserProfile(newProfile);
+          return newProfile;
         }
         
         console.error('Error loading profile:', error);
-        return;
+        return null;
       }
 
       setUserProfile(profile);
+      return profile;
     } catch (error: any) {
       console.error('Error in loadUserProfile:', error.message);
+      return null;
     }
   };
 
@@ -171,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -185,32 +172,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
-        // Create user profile directly instead of using RPC
-        const { error: profileError } = await supabase
+        // Create user profile immediately
+        const defaultProfile = {
+          id: data.user.id,
+          username: username,
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+          trainer_level: 1,
+          civic_coins: 0,
+          trust_score: 0,
+          rank: 'Novice Trainer'
+        };
+
+        // Always use supabaseAdmin for profile creation
+        if (!supabaseAdmin) {
+          console.error('Admin client not available');
+          throw new Error('Unable to create profile: Admin client not available');
+        }
+
+        const { error: profileError } = await supabaseAdmin
           .from('user_profiles')
-          .insert([{
-            id: data.user.id,
-            username: username,
-            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-            trainer_level: 1,
-            civic_coins: 0,
-            trust_score: 0,
-            rank: 'Novice Trainer',
-            badges: []
-          }]);
+          .upsert([defaultProfile]);
 
         if (profileError) {
           console.error('Error creating profile:', profileError);
+          throw profileError;
         }
-      }
 
-      Alert.alert(
-        'Success',
-        'Account created successfully! Please check your email to verify your account.'
-      );
-      router.replace('/(auth)/sign-in');
+        // Show success message and redirect to sign in
+        Alert.alert(
+          'Sign Up Successful',
+          'Please check your email for verification and proceed to sign in.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.replace('/(auth)/sign-in')
+            }
+          ]
+        );
+      }
     } catch (error: any) {
       handleAuthError(error, 'Sign Up');
+    } finally {
+      setLoading(false);
     }
   };
 

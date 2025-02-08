@@ -11,6 +11,8 @@ export interface Issue {
   updated_at: string;
   user_id: string;
   category: string;
+  photos?: string[];
+  verification_count?: number;
 }
 
 export interface Bounds {
