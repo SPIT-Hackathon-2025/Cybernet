@@ -13,10 +13,9 @@ DROP FUNCTION IF EXISTS increment_coins CASCADE;
 DROP FUNCTION IF EXISTS get_full_profile CASCADE;
 DROP FUNCTION IF EXISTS update_user_rank CASCADE;
 DROP FUNCTION IF EXISTS get_issues_in_bounds CASCADE;
-DROP FUNCTION IF EXISTS get_nearby_verified_venues(double precision, double precision, integer);
-DROP FUNCTION IF EXISTS get_nearby_verified_venues(double precision, double precision, double precision);
-DROP FUNCTION IF EXISTS get_nearby_verified_venues(lat double precision, lng double precision, radius_km double precision);
-DROP FUNCTION IF EXISTS get_nearby_verified_venues(lat double precision, lng double precision, radius_meters integer);
+DROP FUNCTION IF EXISTS get_nearby_verified_venues CASCADE;
+DROP FUNCTION IF EXISTS get_nearby_lost_items CASCADE;
+DROP FUNCTION IF EXISTS get_nearby_found_items CASCADE;
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -118,7 +117,8 @@ CREATE TABLE lost_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
     description TEXT NOT NULL,
-    location GEOGRAPHY(POINT) NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
     user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
     venue_id UUID REFERENCES venues(id),
     status TEXT NOT NULL DEFAULT 'lost',
@@ -130,10 +130,9 @@ CREATE TABLE lost_items (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX venues_location_idx ON venues USING gist (ST_SetSRID(ST_Point(longitude, latitude), 4326));
+CREATE INDEX venues_coords_idx ON venues(latitude, longitude);
+CREATE INDEX lost_items_coords_idx ON lost_items(latitude, longitude);
 CREATE INDEX issues_location_idx ON issues USING gist (location);
-CREATE INDEX lost_items_location_idx ON lost_items USING gist (location);
-CREATE INDEX issues_status_idx ON issues(status);
 CREATE INDEX lost_items_status_idx ON lost_items(status);
 
 -- Enable RLS on all tables
@@ -333,33 +332,46 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION get_nearby_verified_venues(
     lat double precision,
     lng double precision,
-    radius_km double precision DEFAULT 1.0
+    radius_meters integer DEFAULT 1000
 )
-RETURNS SETOF venues AS $$
-DECLARE
-    radius_meters integer;
+RETURNS TABLE (
+    id UUID,
+    name TEXT,
+    description TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    verified BOOLEAN,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    distance_meters DOUBLE PRECISION
+) AS $$
 BEGIN
-    -- Convert km to meters
-    radius_meters := (radius_km * 1000)::integer;
-    
     RETURN QUERY
-    SELECT *
-    FROM venues
-    WHERE verified = true
-    AND ST_DWithin(
-        location,
-        ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
-        radius_meters
-    )
-    ORDER BY ST_Distance(
-        location,
-        ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography
-    );
+    SELECT 
+        v.*,
+        (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(v.latitude)) *
+                cos(radians(v.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(v.latitude))
+            )
+        )::DOUBLE PRECISION as distance_meters
+    FROM venues v
+    WHERE 
+        v.verified = true
+        AND (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(v.latitude)) *
+                cos(radians(v.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(v.latitude))
+            )
+        ) <= radius_meters
+    ORDER BY distance_meters;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION get_nearby_verified_venues(double precision, double precision, double precision) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_nearby_verified_venues(double precision, double precision, integer) TO authenticated;
 
 -- Create update_user_rank function
 CREATE OR REPLACE FUNCTION update_user_rank()
@@ -575,7 +587,8 @@ RETURNS TABLE (
     id UUID,
     title TEXT,
     description TEXT,
-    location GEOGRAPHY,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     user_id UUID,
     venue_id UUID,
     status TEXT,
@@ -591,17 +604,25 @@ BEGIN
     RETURN QUERY
     SELECT 
         l.*,
-        ST_Distance(l.location, ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography) as distance_meters,
+        (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(l.latitude)) *
+                cos(radians(l.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(l.latitude))
+            )
+        )::DOUBLE PRECISION as distance_meters,
         v.name as venue_name
     FROM lost_items l
     LEFT JOIN venues v ON l.venue_id = v.id
     WHERE 
         l.status = 'lost'
-        AND ST_DWithin(
-            l.location,
-            ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
-            radius_meters
-        )
+        AND (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(l.latitude)) *
+                cos(radians(l.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(l.latitude))
+            )
+        ) <= radius_meters
     ORDER BY distance_meters;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -616,7 +637,8 @@ RETURNS TABLE (
     id UUID,
     title TEXT,
     description TEXT,
-    location GEOGRAPHY,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     user_id UUID,
     venue_id UUID,
     status TEXT,
@@ -632,17 +654,25 @@ BEGIN
     RETURN QUERY
     SELECT 
         l.*,
-        ST_Distance(l.location, ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography) as distance_meters,
+        (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(l.latitude)) *
+                cos(radians(l.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(l.latitude))
+            )
+        )::DOUBLE PRECISION as distance_meters,
         v.name as venue_name
     FROM lost_items l
     LEFT JOIN venues v ON l.venue_id = v.id
     WHERE 
         l.status = 'found'
-        AND ST_DWithin(
-            l.location,
-            ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
-            radius_meters
-        )
+        AND (
+            6371000 * acos(
+                cos(radians(lat)) * cos(radians(l.latitude)) *
+                cos(radians(l.longitude) - radians(lng)) +
+                sin(radians(lat)) * sin(radians(l.latitude))
+            )
+        ) <= radius_meters
     ORDER BY distance_meters;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

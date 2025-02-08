@@ -11,7 +11,8 @@ export interface LostFoundItem {
   id: string;
   title: string;
   description: string;
-  location: any;
+  latitude: number;
+  longitude: number;
   user_id: string;
   venue_id: string | null;
   status: 'lost' | 'found';
@@ -55,7 +56,7 @@ export const getNearbyLostItems = async (
   latitude: number,
   longitude: number,
   radiusMeters: number = 1000
-) => {
+): Promise<LostFoundItem[]> => {
   try {
     const { data, error } = await supabase
       .rpc('get_nearby_lost_items', {
@@ -65,7 +66,7 @@ export const getNearbyLostItems = async (
       });
 
     if (error) throw error;
-    return data as LostFoundItem[];
+    return data;
   } catch (error: any) {
     throw handleSupabaseError(error);
   }
@@ -75,7 +76,7 @@ export const getNearbyFoundItems = async (
   latitude: number,
   longitude: number,
   radiusMeters: number = 1000
-) => {
+): Promise<LostFoundItem[]> => {
   try {
     const { data, error } = await supabase
       .rpc('get_nearby_found_items', {
@@ -85,7 +86,7 @@ export const getNearbyFoundItems = async (
       });
 
     if (error) throw error;
-    return data as LostFoundItem[];
+    return data;
   } catch (error: any) {
     throw handleSupabaseError(error);
   }
@@ -125,5 +126,22 @@ export const reverseGeocode = async ({ latitude, longitude }: LocationData) => {
   } catch (error) {
     console.error('Reverse geocoding error:', error);
     throw new Error('Unable to get address for this location');
+  }
+};
+
+export const createLostFoundItem = async (
+  item: Omit<LostFoundItem, 'id' | 'created_at' | 'updated_at' | 'distance_meters' | 'venue_name'>
+) => {
+  try {
+    const { data, error } = await supabase
+      .from('lost_items')
+      .insert([item])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    throw handleSupabaseError(error);
   }
 }; 
