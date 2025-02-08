@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, View, Alert, Platform, Text } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { StyleSheet, View, Alert, Platform, Text, TouchableOpacity, Animated as RNAnimated } from 'react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '@/contexts/AuthContext';
 import { Issue } from '@/types';
@@ -7,10 +7,13 @@ import { issueService } from '@/services/issueService';
 import { FAB } from '@/components/ui/FAB';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
+import { PokeguideCharacter } from '@/components/PokeguideCharacter';
+import { openSettings } from 'expo-linking';
 
 export default function MapScreen() {
   const { user } = useAuth();
@@ -23,64 +26,168 @@ export default function MapScreen() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const mapRef = useRef<MapView>(null);
+  const [showGuideMessage, setShowGuideMessage] = useState(false);
+  const bounceAnimation = useRef(new RNAnimated.Value(0)).current;
+  const locationTimeout = useRef<NodeJS.Timeout>();
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        // Request foreground location permission
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setErrorMsg('Permission to access location was denied');
-          Alert.alert(
-            'Location Permission Required',
-            'Please enable location services to use all features of the app.',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
+    if (user) {
+      requestLocationAndZoom();
+    }
+    startBounceAnimation();
 
-        // Get current location
-        let currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        setLocation(currentLocation);
-
-        // Update region with current location
-        setRegion({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
-
-        // Start location updates
-        if (Platform.OS !== 'web') {
-          Location.watchPositionAsync(
-            {
-              accuracy: Location.Accuracy.Balanced,
-              timeInterval: 5000,
-              distanceInterval: 10,
-            },
-            (newLocation) => {
-              setLocation(newLocation);
-            }
-          );
-        }
-      } catch (error) {
-        console.error('Error getting location:', error);
-        setErrorMsg('Error getting location');
-      }
-    })();
-
-    // Set up realtime subscription for issues
     const subscription = issueService.subscribeToIssues((newIssue) => {
       setIssues(current => [...current, newIssue]);
     });
 
     return () => {
       subscription.unsubscribe();
+      if (locationTimeout.current) {
+        clearTimeout(locationTimeout.current);
+      }
     };
-  }, []);
+  }, [user]);
+
+  const startBounceAnimation = () => {
+    RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(bounceAnimation, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(bounceAnimation, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const requestLocationAndZoom = async () => {
+    try {
+      // Prevent multiple rapid location requests
+      if (isLocatingUser) return;
+      setIsLocatingUser(true);
+
+      // First check if location services are enabled
+      const locationEnabled = await Location.hasServicesEnabledAsync();
+      
+      if (!locationEnabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'Please enable location services to use all features of the app.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => openSettings()
+            }
+          ]
+        );
+        setIsLocatingUser(false);
+        return;
+      }
+
+      // Then check/request permissions
+      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+      
+      if (existingStatus === 'denied') {
+        Alert.alert(
+          'Permission Required',
+          'PokéGuide needs location access to help you find nearby issues. Please enable it in your settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings',
+              onPress: () => openSettings()
+            }
+          ]
+        );
+        setIsLocatingUser(false);
+        return;
+      }
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission Denied',
+            'You need to grant location permissions to use all features of the app.',
+            [{ text: 'OK' }]
+          );
+          setIsLocatingUser(false);
+          return;
+        }
+      }
+
+      // Get location with high accuracy
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        mayShowUserSettingsDialog: false
+      });
+      
+      setLocation(currentLocation);
+
+      // Smoothly animate to user's location with a nice zoom effect
+      if (mapRef.current) {
+        // First zoom out slightly
+        await mapRef.current.animateCamera({
+          center: {
+            latitude: currentLocation.coords.latitude,
+            longitude: currentLocation.coords.longitude,
+          },
+          pitch: 45,
+          heading: 0,
+          altitude: 5000,
+          zoom: 12
+        }, { duration: 1000 });
+
+        // Then zoom in closer to the location
+        await mapRef.current.animateCamera({
+          center: {
+            latitude: currentLocation.coords.latitude,
+            longitude: currentLocation.coords.longitude,
+          },
+          pitch: 0,
+          heading: 0,
+          altitude: 1000,
+          zoom: 16
+        }, { duration: 1500 });
+      }
+
+      // Add debounce to prevent rapid location updates
+      locationTimeout.current = setTimeout(() => {
+        setIsLocatingUser(false);
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert(
+        'Location Error',
+        'Could not get your location. Please check your settings and try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Open Settings',
+            onPress: () => openSettings()
+          }
+        ]
+      );
+      setIsLocatingUser(false);
+    }
+  };
+
+  const handleGuidePress = () => {
+    setShowGuideMessage(!showGuideMessage);
+    // Updated haptic feedback implementation
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
 
   const loadIssuesInView = async (newRegion: Region) => {
     try {
@@ -133,6 +240,7 @@ export default function MapScreen() {
       </LinearGradient>
 
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         region={region}
@@ -163,6 +271,42 @@ export default function MapScreen() {
           </Marker>
         ))}
       </MapView>
+
+      {issues.length === 0 && (
+        <TouchableOpacity 
+          onPress={handleGuidePress}
+          style={styles.emptyState}
+        >
+          <RNAnimated.View
+            style={[
+              styles.guideWrapper,
+              {
+                transform: [{
+                  translateY: bounceAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -10]
+                  })
+                }]
+              }
+            ]}
+          >
+            <PokeguideCharacter 
+              emotion={showGuideMessage ? "happy-with-football" : "explaining"} 
+              size={60}
+              animated={false}
+            />
+          </RNAnimated.View>
+
+          {showGuideMessage && (
+            <View style={styles.messageBox}>
+              <Text style={styles.messageText}>
+                Hey trainer! Tap the + button to report issues you find during your adventure! 
+                Let's make our community better together! 🌟
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
 
       <FAB
         icon="add"
@@ -238,32 +382,110 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
   },
+  emptyState: {
+    position: 'absolute',
+    bottom: -30, // This puts it behind the tab bar
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  guideWrapper: {
+    padding: 8,
+  },
+  messageBox: {
+    position: 'absolute',
+    bottom: 140, // Adjusted to appear above the tab bar
+    width: 250,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    alignSelf: 'center',
+  },
+  messageText: {
+    fontSize: 14,
+    color: Colors.text.primary,
+    lineHeight: 20,
+  },
 });
 
 const mapStyle = [
   {
-    "featureType": "water",
-    "elementType": "geometry",
+    "elementType": "labels.text.fill",
     "stylers": [
       {
-        "color": "#e9e9e9"
-      },
-      {
-        "lightness": 17
+        "color": "#FF5D00"
       }
     ]
   },
   {
-    "featureType": "landscape",
-    "elementType": "geometry",
+    "elementType": "labels.text.stroke",
     "stylers": [
       {
-        "color": "#f5f5f5"
-      },
-      {
-        "lightness": 20
+        "color": "#FFFFFF"
       }
     ]
   },
-  // Add more map styles as needed
+  {
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#FF5D00"
+      }
+    ]
+  },
+  {
+    "featureType": "road.arterial",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#FF5D00"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#FF5D00"
+      }
+    ]
+  },
+  {
+    "featureType": "road.local",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#FF5D00"
+      }
+    ]
+  },
+  {
+    "featureType": "transit.station",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#FF5D00"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#FF5D00"
+      }
+    ]
+  }
 ];

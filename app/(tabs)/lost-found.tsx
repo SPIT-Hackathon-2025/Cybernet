@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
+import { StyleSheet, View, ScrollView, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
+import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 
 export default function LostFoundScreen() {
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
@@ -16,8 +17,14 @@ export default function LostFoundScreen() {
         colors={['#1A1A1A', '#4A4A4A']}
         style={styles.header}
       >
-        <ThemedText style={styles.headerTitle}>Lost & Found</ThemedText>
-        <ThemedText style={styles.headerSubtitle}>Help reunite items with their owners</ThemedText>
+        <PokeguideCharacter 
+          emotion="concerned-asking" 
+          size={60}
+          style={styles.guideCharacter}
+        />
+        <Text style={styles.headerTitle}>
+          Lost something? Let's help you find it!
+        </Text>
       </LinearGradient>
 
       <View style={styles.tabContainer}>
@@ -76,5 +83,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  guideCharacter: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }); 

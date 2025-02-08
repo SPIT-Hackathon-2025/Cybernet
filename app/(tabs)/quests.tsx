@@ -9,6 +9,7 @@ import { Colors } from '@/constants/Colors';
 import { Quest } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { gamificationService } from '@/services/gamificationService';
+import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 
 const { width } = Dimensions.get('window');
 
@@ -95,6 +96,22 @@ export default function QuestsScreen() {
           <Button onPress={() => {}}>
             View Details
           </Button>
+        )}
+
+        {quest.completed && (
+          <PokeguideCharacter 
+            emotion="happy-with-football" 
+            size={40}
+            style={styles.completionGuide}
+          />
+        )}
+
+        {quest.isNew && (
+          <PokeguideCharacter 
+            emotion="announcing" 
+            size={40}
+            style={styles.newQuestGuide}
+          />
         )}
       </Card>
     </Animated.View>
@@ -212,5 +229,15 @@ const styles = StyleSheet.create({
   },
   actionProgress: {
     fontWeight: '600',
+  },
+  completionGuide: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+  },
+  newQuestGuide: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
 }); 

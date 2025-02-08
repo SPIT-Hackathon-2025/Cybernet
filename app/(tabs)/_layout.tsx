@@ -1,69 +1,59 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
+import { HapticTab } from '@/components/HapticTab';
+import { router } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import * as Haptics from 'expo-haptics';
 
 // Define theme colors
 const THEME = {
   primary: '#FF5D00', // Vibrant orange
-  secondary: '#FFB74D', // Light orange
-  background: '#F8F9FA', // Light grey background
-  surface: '#FFFFFF', // White surface
   inactive: '#94A3B8', // Medium grey for inactive
 };
 
 export default function TabLayout() {
+  const { signOut } = useAuth();
+
+  const handleMorePress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/(more)');
+  };
+
   return (
-    <Tabs screenOptions={{
-      tabBarActiveTintColor: THEME.primary,
-      tabBarInactiveTintColor: THEME.inactive,
-      tabBarStyle: {
-        height: 60,
-        position: 'absolute',
-        bottom: 20,
-        left: 20,
-        right: 20,
-        backgroundColor: THEME.surface,
-        borderRadius: 16,
-        paddingBottom: 6,
-        paddingTop: 6,
-        elevation: 0,
-        borderTopWidth: 0,
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 4,
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: THEME.primary,
+        tabBarInactiveTintColor: THEME.inactive,
+        tabBarStyle: {
+          height: 65,
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(0, 0, 0, 0.1)',
         },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      tabBarLabelStyle: {
-        fontSize: 11,
-        fontWeight: '600',
-        marginTop: 0,
-      },
-      headerShown: false,
-      tabBarItemStyle: {
-        paddingTop: 0,
-        height: 48,
-      },
-    }}>
+        tabBarLabelStyle: {
+          fontSize: 12,
+          marginTop: 0,
+          marginBottom: 4,
+        },
+        tabBarButton: (props) => <HapticTab {...props} />,
+        headerShown: false,
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
+      }}>
       <Tabs.Screen
-        name="report"
+        name="index"
         options={{
-          title: 'Report',
+          title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              padding: 4,
-              backgroundColor: focused ? `${THEME.primary}10` : 'transparent',
-              borderRadius: 8,
-            }}>
-              <Ionicons 
-                name={focused ? "warning" : "warning-outline"} 
-                size={24} 
-                color={color}
-                style={{ fontWeight: focused ? '900' : '400' }}
-              />
-            </View>
+            <Ionicons 
+              name={focused ? "home" : "home-outline"} 
+              size={28} 
+              color={color}
+            />
           ),
         }}
       />
@@ -72,18 +62,11 @@ export default function TabLayout() {
         options={{
           title: 'Lost & Found',
           tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              padding: 4,
-              backgroundColor: focused ? `${THEME.primary}10` : 'transparent',
-              borderRadius: 8,
-            }}>
-              <Ionicons 
-                name={focused ? "search-circle" : "search-circle-outline"} 
-                size={26} 
-                color={color}
-                style={{ fontWeight: focused ? '900' : '400' }}
-              />
-            </View>
+            <Ionicons 
+              name={focused ? "search" : "search-outline"} 
+              size={28} 
+              color={color}
+            />
           ),
         }}
       />
@@ -92,38 +75,37 @@ export default function TabLayout() {
         options={{
           title: 'Quests',
           tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              padding: 4,
-              backgroundColor: focused ? `${THEME.primary}10` : 'transparent',
-              borderRadius: 8,
-            }}>
-              <Ionicons 
-                name={focused ? "trophy" : "trophy-outline"} 
-                size={24} 
-                color={color}
-                style={{ fontWeight: focused ? '900' : '400' }}
-              />
-            </View>
+            <Ionicons 
+              name={focused ? "trophy" : "trophy-outline"} 
+              size={28} 
+              color={color}
+            />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="report"
         options={{
-          title: 'Profile',
+          title: 'Report',
           tabBarIcon: ({ color, focused }) => (
-            <View style={{
-              padding: 4,
-              backgroundColor: focused ? `${THEME.primary}10` : 'transparent',
-              borderRadius: 8,
-            }}>
-              <Ionicons 
-                name={focused ? "person-circle" : "person-circle-outline"} 
-                size={24} 
-                color={color}
-                style={{ fontWeight: focused ? '900' : '400' }}
-              />
-            </View>
+            <Ionicons 
+              name={focused ? "alert-circle" : "alert-circle-outline"} 
+              size={28} 
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: 'More',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "menu" : "menu-outline"} 
+              size={28} 
+              color={color}
+            />
           ),
         }}
       />
