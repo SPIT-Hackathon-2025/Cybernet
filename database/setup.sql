@@ -123,6 +123,8 @@ CREATE TABLE lost_items (
     venue_id UUID REFERENCES venues(id),
     status TEXT NOT NULL DEFAULT 'lost',
     photos TEXT[],
+    item_type TEXT NOT NULL,
+    contact_info JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -562,3 +564,89 @@ CREATE POLICY "Users can view their own email status"
     ON user_profiles FOR SELECT
     TO authenticated
     USING (auth.uid() = id);
+
+-- Create function to get nearby lost items
+CREATE OR REPLACE FUNCTION get_nearby_lost_items(
+    lat double precision,
+    lng double precision,
+    radius_meters integer DEFAULT 1000
+)
+RETURNS TABLE (
+    id UUID,
+    title TEXT,
+    description TEXT,
+    location GEOGRAPHY,
+    user_id UUID,
+    venue_id UUID,
+    status TEXT,
+    photos TEXT[],
+    item_type TEXT,
+    contact_info JSONB,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    distance_meters DOUBLE PRECISION,
+    venue_name TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        l.*,
+        ST_Distance(l.location, ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography) as distance_meters,
+        v.name as venue_name
+    FROM lost_items l
+    LEFT JOIN venues v ON l.venue_id = v.id
+    WHERE 
+        l.status = 'lost'
+        AND ST_DWithin(
+            l.location,
+            ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+            radius_meters
+        )
+    ORDER BY distance_meters;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create function to get nearby found items
+CREATE OR REPLACE FUNCTION get_nearby_found_items(
+    lat double precision,
+    lng double precision,
+    radius_meters integer DEFAULT 1000
+)
+RETURNS TABLE (
+    id UUID,
+    title TEXT,
+    description TEXT,
+    location GEOGRAPHY,
+    user_id UUID,
+    venue_id UUID,
+    status TEXT,
+    photos TEXT[],
+    item_type TEXT,
+    contact_info JSONB,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    distance_meters DOUBLE PRECISION,
+    venue_name TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        l.*,
+        ST_Distance(l.location, ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography) as distance_meters,
+        v.name as venue_name
+    FROM lost_items l
+    LEFT JOIN venues v ON l.venue_id = v.id
+    WHERE 
+        l.status = 'found'
+        AND ST_DWithin(
+            l.location,
+            ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+            radius_meters
+        )
+    ORDER BY distance_meters;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permissions
+GRANT EXECUTE ON FUNCTION get_nearby_lost_items(double precision, double precision, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_nearby_found_items(double precision, double precision, integer) TO authenticated;

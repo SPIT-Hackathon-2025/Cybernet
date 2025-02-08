@@ -7,6 +7,26 @@ export interface LocationData {
   longitude: number;
 }
 
+export interface LostFoundItem {
+  id: string;
+  title: string;
+  description: string;
+  location: any;
+  user_id: string;
+  venue_id: string | null;
+  status: 'lost' | 'found';
+  photos: string[];
+  item_type: string;
+  contact_info: {
+    email: string;
+    phone: string;
+  };
+  created_at: string;
+  updated_at: string;
+  distance_meters: number;
+  venue_name: string | null;
+}
+
 export const getCurrentLocation = async (): Promise<LocationData> => {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -31,27 +51,62 @@ export const getCurrentLocation = async (): Promise<LocationData> => {
   }
 };
 
+export const getNearbyLostItems = async (
+  latitude: number,
+  longitude: number,
+  radiusMeters: number = 1000
+) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_nearby_lost_items', {
+        lat: latitude,
+        lng: longitude,
+        radius_meters: radiusMeters
+      });
+
+    if (error) throw error;
+    return data as LostFoundItem[];
+  } catch (error: any) {
+    throw handleSupabaseError(error);
+  }
+};
+
+export const getNearbyFoundItems = async (
+  latitude: number,
+  longitude: number,
+  radiusMeters: number = 1000
+) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_nearby_found_items', {
+        lat: latitude,
+        lng: longitude,
+        radius_meters: radiusMeters
+      });
+
+    if (error) throw error;
+    return data as LostFoundItem[];
+  } catch (error: any) {
+    throw handleSupabaseError(error);
+  }
+};
+
 export const getNearbyVerifiedVenues = async (
   latitude: number,
   longitude: number,
-  radiusKm: number = 1.0
+  radiusMeters: number = 1000
 ) => {
   try {
     const { data, error } = await supabase
       .rpc('get_nearby_verified_venues', {
         lat: latitude,
         lng: longitude,
-        radius_km: radiusKm
+        radius_meters: radiusMeters
       });
 
     if (error) throw error;
     return data;
   } catch (error: any) {
-    // Check if it's a function not found error (wrong parameter names)
-    if (error.code === 'PGRST202') {
-      console.error('Function parameter mismatch:', error);
-      throw new Error('Unable to fetch nearby venues. Please try again later.');
-    }
     throw handleSupabaseError(error);
   }
 };

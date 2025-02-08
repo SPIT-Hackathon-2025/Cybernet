@@ -11,10 +11,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { FAB } from '@/components/ui/FAB';
-import { venueService } from '@/services/venueService';
-import { lostItemService } from '@/services/lostItemService';
+import { getNearbyVerifiedVenues, Venue } from '@/services/venueService';
 import { supabase } from '@/lib/supabase';
 import { PokeguideCharacter } from '@/components/PokeguideCharacter';
+import { getNearbyLostItems, getNearbyFoundItems, LostFoundItem } from '@/services/locationService';
+import { useRouter } from 'expo-router';
 
 export default function LostFoundScreen() {
   const { user } = useAuth();
@@ -22,18 +23,22 @@ export default function LostFoundScreen() {
   const theme = Colors[colorScheme ?? 'light'];
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [lostItems, setLostItems] = useState<any[]>([]);
+  const [lostItems, setLostItems] = useState<LostFoundItem[]>([]);
+  const [foundItems, setFoundItems] = useState<LostFoundItem[]>([]);
   const [loading, setLoading] = useState(false);
   
+  const router = useRouter();
+
   // Form states
+  const [formType, setFormType] = useState<'lost' | 'found'>('lost');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [itemType, setItemType] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
-  const [selectedVenue, setSelectedVenue] = useState<any>(null);
+  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [nearbyVenues, setNearbyVenues] = useState<any[]>([]);
+  const [nearbyVenues, setNearbyVenues] = useState<Venue[]>([]);
 
   const itemTypes = [
     'Electronics',
@@ -47,17 +52,31 @@ export default function LostFoundScreen() {
   ];
 
   useEffect(() => {
-    loadLostItems();
+    loadItems();
     getCurrentLocationAndVenues();
-  }, []);
+  }, [activeTab]);
 
-  const loadLostItems = async () => {
+  const loadItems = async () => {
     try {
-      const items = await lostItemService.getLostItems();
-      setLostItems(items);
+      const location = await Location.getCurrentPositionAsync({});
+      if (activeTab === 'lost') {
+        const items = await getNearbyLostItems(
+          location.coords.latitude,
+          location.coords.longitude,
+          1000
+        );
+        setLostItems(items);
+      } else {
+        const items = await getNearbyFoundItems(
+          location.coords.latitude,
+          location.coords.longitude,
+          1000
+        );
+        setFoundItems(items);
+      }
     } catch (error) {
-      console.error('Error loading lost items:', error);
-      Alert.alert('Error', 'Failed to load lost items');
+      console.error('Error loading items:', error);
+      Alert.alert('Error', 'Failed to load items');
     }
   };
 
@@ -70,9 +89,10 @@ export default function LostFoundScreen() {
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      const venues = await venueService.getNearbyVerifiedVenues(
+      const venues = await getNearbyVerifiedVenues(
         location.coords.latitude,
-        location.coords.longitude
+        location.coords.longitude,
+        1000 // 1km radius in meters
       );
       setNearbyVenues(venues);
     } catch (error) {
@@ -157,34 +177,41 @@ export default function LostFoundScreen() {
 
     try {
       setLoading(true);
-      const newLostItem = {
+      const newItem = {
         title: title.trim(),
         description: description.trim(),
         item_type: itemType,
-        location: {
-          latitude: selectedVenue.latitude,
-          longitude: selectedVenue.longitude
-        },
-        reporter_id: user!.id,
+        location: `SRID=4326;POINT(${selectedVenue!.longitude} ${selectedVenue!.latitude})`,
+        user_id: user!.id,
+        venue_id: selectedVenue!.id,
         photos,
         contact_info: {
           email: email.trim(),
           phone: phone.trim()
         },
-        status: 'open'
+        status: formType
       };
 
-      await lostItemService.createLostItem(newLostItem);
+      const { data, error } = await supabase
+        .from('lost_items')
+        .insert([newItem]);
+
+      if (error) throw error;
+
       setIsModalVisible(false);
       resetForm();
-      loadLostItems();
-      Alert.alert('Success', 'Lost item reported successfully');
+      loadItems();
+      Alert.alert('Success', `${formType === 'lost' ? 'Lost' : 'Found'} item reported successfully`);
     } catch (error) {
-      console.error('Error reporting lost item:', error);
-      Alert.alert('Error', 'Failed to report lost item. Please try again.');
+      console.error('Error reporting item:', error);
+      Alert.alert('Error', `Failed to report ${formType} item. Please try again.`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFABPress = () => {
+    router.push(`/lost-found/add?type=${activeTab}`);
   };
 
   const resetForm = () => {
@@ -193,7 +220,7 @@ export default function LostFoundScreen() {
     setItemType('');
     setPhotos([]);
     setSelectedVenue(null);
-    setEmail('');
+    setEmail(user?.email || ''); // Pre-fill with user's email if available
     setPhone('');
   };
 
@@ -215,13 +242,13 @@ export default function LostFoundScreen() {
     </View>
   );
 
-  const renderLostItem = (item: any) => (
+  const renderLostItem = (item: LostFoundItem) => (
     <Card key={item.id} style={styles.itemCard}>
       <View style={styles.itemHeader}>
         <View style={styles.itemInfo}>
           <ThemedText type="subtitle" style={styles.itemTitle}>{item.title}</ThemedText>
           <ThemedText style={styles.itemMeta} dimmed>
-            {new Date(item.created_at).toLocaleDateString()}
+            {new Date(item.created_at).toLocaleDateString()} • {Math.round(item.distance_meters)}m away
           </ThemedText>
         </View>
         {item.photos?.[0] && (
@@ -243,12 +270,22 @@ export default function LostFoundScreen() {
           <View style={[styles.tag, { backgroundColor: theme.backgroundDim }]}>
             <Ionicons name="location" size={14} color={theme.primary} />
             <ThemedText style={styles.tagText} numberOfLines={1}>
-              {item.venue?.name || 'Location pending'}
+              {item.venue_name || 'Location pending'}
             </ThemedText>
           </View>
         </View>
-        <Button variant="ghost" size="small" onPress={() => {}}>
-          View Details
+        <Button 
+          variant="ghost" 
+          size="small" 
+          onPress={() => {
+            Alert.alert(
+              'Contact Information',
+              `Email: ${item.contact_info.email}\nPhone: ${item.contact_info.phone}`,
+              [{ text: 'OK' }]
+            );
+          }}
+        >
+          Contact
         </Button>
       </View>
     </Card>
@@ -327,194 +364,40 @@ export default function LostFoundScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        {lostItems.length > 0 ? (
-          lostItems.map(renderLostItem)
+        {activeTab === 'lost' ? (
+          lostItems.length > 0 ? (
+            lostItems.map(renderLostItem)
+          ) : (
+            renderEmptyState()
+          )
         ) : (
-          renderEmptyState()
+          foundItems.length > 0 ? (
+            foundItems.map(renderLostItem)
+          ) : (
+            renderEmptyState()
+          )
         )}
       </ScrollView>
 
-      <FAB 
-        icon="add" 
-        onPress={() => setIsModalVisible(true)}
-        style={styles.fab}
-      />
-
-      <Modal
-        visible={isModalVisible}
-        animationType="slide"
-        onRequestClose={() => {
-          if (loading) return;
-          setIsModalVisible(false);
-          resetForm();
-        }}
-        statusBarTranslucent
+      <TouchableOpacity
+        onPress={handleFABPress}
+        style={styles.fabContainer}
+        activeOpacity={0.8}
       >
-        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
-          <View style={[styles.modalWrapper, { backgroundColor: theme.background }]}>
-            <SafeAreaView style={styles.modalContainer}>
-              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-                <ThemedText type="title">Report Lost Item</ThemedText>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (loading) return;
-                    setIsModalVisible(false);
-                    resetForm();
-                  }}
-                  style={styles.closeButton}
-                >
-                  <Ionicons name="close" size={24} color={theme.text} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView 
-                style={styles.modalContent}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-              >
-                <Card style={styles.formSection}>
-                  <ThemedText type="subtitle" style={styles.sectionTitle}>Basic Information</ThemedText>
-                  <TextInput
-                    label="Title *"
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="What did you lose? (e.g., Blue Nike Backpack)"
-                    maxLength={100}
-                  />
-
-                  <TextInput
-                    label="Description *"
-                    value={description}
-                    onChangeText={setDescription}
-                    multiline
-                    numberOfLines={4}
-                    placeholder="Provide detailed description including color, brand, distinguishing features..."
-                    maxLength={500}
-                    style={styles.textArea}
-                  />
-
-                  <View style={styles.itemTypeSection}>
-                    <ThemedText style={styles.label}>Item Type *</ThemedText>
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.itemTypeScroll}
-                    >
-                      {itemTypes.map((type) => (
-                        <Button
-                          key={type}
-                          variant={itemType === type ? 'default' : 'outline'}
-                          size="small"
-                          style={styles.itemTypeButton}
-                          onPress={() => setItemType(type)}
-                        >
-                          {type}
-                        </Button>
-                      ))}
-                    </ScrollView>
-                  </View>
-                </Card>
-
-                <Card style={styles.formSection}>
-                  <ThemedText type="subtitle" style={styles.sectionTitle}>Photos</ThemedText>
-                  <ThemedText style={styles.helperText} dimmed>
-                    Add up to 3 clear photos of your item to help others identify it
-                  </ThemedText>
-                  <View style={styles.photoGrid}>
-                    {[0, 1, 2].map((index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.photoSlot,
-                          { backgroundColor: theme.backgroundDim }
-                        ]}
-                        onPress={photos.length > index ? undefined : pickImage}
-                      >
-                        {photos[index] ? (
-                          <>
-                            <Image 
-                              source={{ uri: photos[index] }}
-                              style={styles.previewImage}
-                            />
-                            <TouchableOpacity
-                              style={styles.removePhoto}
-                              onPress={() => setPhotos(photos.filter((_, i) => i !== index))}
-                            >
-                              <Ionicons name="close-circle" size={24} color={theme.error} />
-                            </TouchableOpacity>
-                          </>
-                        ) : (
-                          <View style={styles.addPhotoPlaceholder}>
-                            <Ionicons name="camera" size={24} color={theme.textDim} />
-                            <ThemedText style={styles.addPhotoText} dimmed>
-                              Add Photo
-                            </ThemedText>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </Card>
-
-                <Card style={styles.formSection}>
-                  <ThemedText type="subtitle" style={styles.sectionTitle}>Location *</ThemedText>
-                  <ThemedText style={styles.helperText} dimmed>
-                    Select the location where you last saw the item
-                  </ThemedText>
-                  <View style={styles.venueList}>
-                    {nearbyVenues.map(venue => (
-                      <Button
-                        key={venue.id}
-                        variant={selectedVenue?.id === venue.id ? 'default' : 'outline'}
-                        style={styles.venueButton}
-                        onPress={() => setSelectedVenue(venue)}
-                      >
-                        <Ionicons 
-                          name="location" 
-                          size={16} 
-                          color={selectedVenue?.id === venue.id ? theme.modalBackground : theme.primary} 
-                        />
-                        <ThemedText style={selectedVenue?.id === venue.id ? { color: theme.modalBackground } : undefined}>
-                          {venue.name}
-                        </ThemedText>
-                      </Button>
-                    ))}
-                  </View>
-                </Card>
-
-                <Card style={styles.formSection}>
-                  <ThemedText type="subtitle" style={styles.sectionTitle}>Contact Information</ThemedText>
-                  <TextInput
-                    label="Email *"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    placeholder="your.email@example.com"
-                    autoCapitalize="none"
-                  />
-
-                  <TextInput
-                    label="Phone *"
-                    value={phone}
-                    onChangeText={setPhone}
-                    keyboardType="phone-pad"
-                    placeholder="+1234567890"
-                  />
-                </Card>
-
-                <Button
-                  onPress={handleSubmit}
-                  loading={loading}
-                  disabled={loading}
-                  style={styles.submitButton}
-                >
-                  Submit Report
-                </Button>
-              </ScrollView>
-            </SafeAreaView>
+        <LinearGradient
+          colors={[theme.primary, theme.secondary]}
+          style={styles.fab}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.fabContent}>
+            <Ionicons name="add" size={24} color="white" />
+            <ThemedText style={styles.fabText} color="white">
+              Report {activeTab === 'lost' ? 'Lost' : 'Found'} Item
+            </ThemedText>
           </View>
-        </View>
-      </Modal>
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -635,10 +518,34 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 12,
   },
-  fab: {
+  fabContainer: {
     position: 'absolute',
     bottom: 24,
     right: 24,
+    left: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  fab: {
+    borderRadius: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  fabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  fabText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,
@@ -659,120 +566,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalWrapper: {
-    flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -3,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 16,
-  },
-  formSection: {
-    marginBottom: 16,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  sectionTitle: {
-    marginBottom: 12,
-  },
-  helperText: {
-    fontSize: 12,
-    marginBottom: 12,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-    paddingTop: 12,
-  },
-  itemTypeSection: {
-    marginTop: 16,
-  },
-  itemTypeScroll: {
-    marginTop: 8,
-  },
-  itemTypeButton: {
-    marginRight: 8,
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  photoSlot: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  removePhoto: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'white',
-    borderRadius: 12,
-  },
-  addPhotoPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  addPhotoText: {
-    fontSize: 12,
-  },
-  venueList: {
-    gap: 8,
-  },
-  venueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  submitButton: {
-    marginVertical: 24,
   },
 }); 
