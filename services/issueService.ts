@@ -75,6 +75,10 @@ export const issueService = {
     return data;
   },
 
+  getIssue: async function(id: string): Promise<Issue> {
+    return this.getIssueById(id);
+  },
+
   async updateIssue(id: string, updates: Partial<Issue>): Promise<Issue> {
     const { data, error } = await supabase
       .from('issues')
@@ -107,5 +111,9 @@ export const issueService = {
 
     if (error) throw error;
     return data;
+  },
+
+  findIssueById(issues: Issue[], id: string): Issue | undefined {
+    return issues.find(issue => issue.id === id);
   }
 }; 

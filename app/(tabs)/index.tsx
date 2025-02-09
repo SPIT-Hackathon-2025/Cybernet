@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Alert, Platform, Text, TouchableOpacity, Animated as RNAnimated, useColorScheme } from 'react-native';
+import { StyleSheet, View, Alert, Platform, Text, TouchableOpacity, Animated as RNAnimated, useColorScheme, Image, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '@/contexts/AuthContext';
 import { Issue } from '@/types';
@@ -40,31 +40,34 @@ export default function HomeScreen() {
   const locationTimeout = useRef<NodeJS.Timeout>();
   const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [lastLocationUpdate, setLastLocationUpdate] = useState<number>(0);
+  const [isLoadingIssues, setIsLoadingIssues] = useState(false);
+  const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
     if (user) {
-      requestLocationAndZoom();
+      setupLocationTracking();
     }
     startBounceAnimation();
 
-    const subscription = issueService.subscribeToIssues((newIssue) => {
+    const issueSubscription = issueService.subscribeToIssues((newIssue) => {
       setIssues(current => [...current, newIssue]);
     });
 
     return () => {
-      subscription.unsubscribe();
+      issueSubscription.unsubscribe();
       if (locationTimeout.current) {
         clearTimeout(locationTimeout.current);
+      }
+      if (locationSubscription) {
+        locationSubscription.remove();
       }
     };
   }, [user]);
 
   useFocusEffect(
     useCallback(() => {
-      if (user) {
-        console.log('Tab focused, fetching issues...');
-        loadIssuesInBounds();
-      }
+      console.log('Tab focused');
     }, [user])
   );
 
@@ -85,63 +88,56 @@ export default function HomeScreen() {
     ).start();
   };
 
-  const requestLocationAndZoom = async () => {
+  const setupLocationTracking = async () => {
     try {
-      if (isLocatingUser) return;
-      setIsLocatingUser(true);
-
-      const locationEnabled = await Location.hasServicesEnabledAsync();
-      if (!locationEnabled) {
-        Alert.alert(
-          'Location Services Disabled',
-          'Please enable location services to use all features of the app.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => openSettings() }
-          ]
-        );
-        setIsLocatingUser(false);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setErrorMsg('Permission to access location was denied');
         return;
-      }
-
-      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
-      if (existingStatus === 'denied') {
-        Alert.alert(
-          'Permission Required',
-          'PokéGuide needs location access to help you find nearby issues.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => openSettings() }
-          ]
-        );
-        setIsLocatingUser(false);
-        return;
-      }
-
-      if (existingStatus !== 'granted') {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert(
-            'Permission Denied',
-            'You need to grant location permissions to use all features.',
-            [{ text: 'OK' }]
-          );
-          setIsLocatingUser(false);
-          return;
-        }
       }
 
       const currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      
       setLocation(currentLocation);
       animateToLocation(currentLocation);
 
-      setTimeout(() => {
-        setIsLocatingUser(false);
-      }, 1500);
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 10000,
+          distanceInterval: 10,
+        },
+        (newLocation) => {
+          setLocation(newLocation);
+        }
+      );
 
+      setLocationSubscription(subscription);
+    } catch (error) {
+      console.error('Error setting up location tracking:', error);
+      setErrorMsg('Error setting up location tracking');
+    }
+  };
+
+  const requestLocationAndZoom = async () => {
+    try {
+      const now = Date.now();
+      if (isLocatingUser || (now - lastLocationUpdate < 5000)) {
+        return;
+      }
+      setIsLocatingUser(true);
+      setLastLocationUpdate(now);
+
+      if (location) {
+        animateToLocation(location);
+      } else {
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setLocation(currentLocation);
+        animateToLocation(currentLocation);
+      }
     } catch (error) {
       console.error('Error getting location:', error);
       Alert.alert(
@@ -152,7 +148,10 @@ export default function HomeScreen() {
           { text: 'Open Settings', onPress: () => openSettings() }
         ]
       );
-      setIsLocatingUser(false);
+    } finally {
+      setTimeout(() => {
+        setIsLocatingUser(false);
+      }, 1500);
     }
   };
 
@@ -180,16 +179,36 @@ export default function HomeScreen() {
 
   const loadIssuesInBounds = async () => {
     try {
+      setIsLoadingIssues(true);
+      
+      // First refresh location
+      if (location) {
+        animateToLocation(location);
+      } else {
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setLocation(currentLocation);
+        animateToLocation(currentLocation);
+      }
+
+      // Then fetch issues
       console.log('Fetching all issues...');
-      
       const { data, error } = await supabase.rpc('get_all_issues');
-      
       console.log('get_all_issues response:', { data, error });
 
       if (error) throw error;
       setIssues(data || []);
+
     } catch (error) {
       console.error('Error loading issues:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load issues. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoadingIssues(false);
     }
   };
 
@@ -197,17 +216,14 @@ export default function HomeScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    router.push({
-      pathname: '/issue/[id]' as const,
-      params: { id: issue.id }
-    } as any);
+    setSelectedIssue(issue);
   };
 
   const handleAddIssue = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    router.push('/issue/new' as any);
+    router.push('/report' as any);
   };
 
   const getMarkerColor = (status: Issue['status']) => {
@@ -274,15 +290,15 @@ export default function HomeScreen() {
               longitude: issue.location.coordinates[0],
             }}
             pinColor={getMarkerColor(issue.status)}
-            onPress={() => setSelectedIssue(issue)}
+            onPress={() => handleMarkerPress(issue)}
           />
         ))}
       </MapView>
 
-      {issues.length === 0 && (
+      <View style={styles.emptyState}>
         <TouchableOpacity 
           onPress={handleGuidePress}
-          style={styles.emptyState}
+          style={styles.guideButton}
         >
           <RNAnimated.View
             style={[
@@ -303,65 +319,107 @@ export default function HomeScreen() {
               animated={false}
             />
           </RNAnimated.View>
+        </TouchableOpacity>
 
-          {showGuideMessage && (
-            <View style={styles.messageBox}>
-              <Text style={[styles.messageText, { color: theme.textDim }]}>
-                Hey trainer! Tap the + button to report issues you find during your adventure! 
-                Let's make our community better together! 🌟
-              </Text>
-            </View>
+        {showGuideMessage && (
+          <View style={styles.messageBox}>
+            <Text style={[styles.messageText, { color: theme.textDim }]}>
+              {issues.length === 0 
+                ? "Hey trainer! Tap the + button to report issues you find during your adventure! Let's make our community better together! 🌟"
+                : "Tap on any marker to view issue details. Use the refresh button to update the map! 🗺️"}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.buttonsContainer}>
+        <FAB
+          icon="add"
+          onPress={handleAddIssue}
+          style={styles.fab}
+          size={28}
+        />
+
+        <TouchableOpacity 
+          style={[
+            styles.refreshButton,
+            isLoadingIssues && styles.refreshButtonDisabled
+          ]}
+          onPress={loadIssuesInBounds}
+          disabled={isLoadingIssues}
+        >
+          {isLoadingIssues ? (
+            <ActivityIndicator color={Colors.light.primary} />
+          ) : (
+            <Ionicons 
+              name="refresh" 
+              size={24} 
+              color={Colors.light.primary} 
+            />
           )}
         </TouchableOpacity>
-      )}
+      </View>
 
-      <FAB
-        icon="add"
-        onPress={handleAddIssue}
-        style={styles.fab}
-        size={28}
-      />
-
-      <TouchableOpacity 
-        style={styles.locationButton}
-        onPress={requestLocationAndZoom}
-        disabled={isLocatingUser}
-      >
-        <Ionicons 
-          name={isLocatingUser ? "locate" : "locate-outline"} 
-          size={24} 
-          color={Colors.light.primary} 
-        />
-      </TouchableOpacity>
       {selectedIssue && (
-        <Card style={styles.issueCard}>
-          <View style={styles.issueHeader}>
-            <View style={styles.issueTitleContainer}>
-              <ThemedText type="title" numberOfLines={1} style={styles.issueTitle}>
-                {selectedIssue.title.length > 30 
-                  ? selectedIssue.title.substring(0, 30) + '...'
-                  : selectedIssue.title
-                }
-              </ThemedText>
-              <ThemedText style={styles.issueStatus} dimmed>
-                {selectedIssue.status.replace('_', ' ').toUpperCase()}
-              </ThemedText>
+        <Modal
+          visible={!!selectedIssue}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setSelectedIssue(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Card style={styles.issueCardModal}>
+                <View style={styles.issueHeader}>
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => setSelectedIssue(null)}
+                  >
+                    <Ionicons name="close" size={24} color={theme.text} />
+                  </TouchableOpacity>
+                  <View style={styles.issueTitleContainer}>
+                    <ThemedText type="title" numberOfLines={2} style={styles.issueTitle}>
+                      {selectedIssue.title}
+                    </ThemedText>
+                    <View style={styles.issueMetaContainer}>
+                      <ThemedText style={styles.issueStatus} dimmed>
+                        {selectedIssue.status.replace('_', ' ').toUpperCase()}
+                      </ThemedText>
+                      <ThemedText style={styles.issueCategory} dimmed>
+                        {selectedIssue.category.toUpperCase()}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <ScrollView style={styles.issueContent}>
+                  <ThemedText style={styles.issueDescription}>
+                    {selectedIssue.description}
+                  </ThemedText>
+                  {selectedIssue.photos && selectedIssue.photos.length > 0 && (
+                    <View style={styles.photoContainer}>
+                      {selectedIssue.photos.map((photo, index) => (
+                        <Image
+                          key={index}
+                          source={{ uri: photo }}
+                          style={styles.issuePhoto}
+                          resizeMode="cover"
+                        />
+                      ))}
+                    </View>
+                  )}
+                  <View style={styles.issueStats}>
+                    <ThemedText style={styles.statText} dimmed>
+                      Verifications: {selectedIssue.verification_count}
+                    </ThemedText>
+                    <ThemedText style={styles.statText} dimmed>
+                      Reported: {new Date(selectedIssue.created_at).toLocaleDateString()}
+                    </ThemedText>
+                  </View>
+                </ScrollView>
+              </Card>
             </View>
-            <Button
-              variant="outline"
-              onPress={() => router.push(`/issue/${selectedIssue.id}`)}
-            >
-              View Details
-            </Button>
           </View>
-          <ThemedText 
-            style={styles.issueDescription} 
-            dimmed 
-            numberOfLines={2}
-          >
-            {selectedIssue.description}
-          </ThemedText>
-        </Card>
+        </Modal>
       )}
     </View>
   );
@@ -419,11 +477,21 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
-  fab: {
+  buttonsContainer: {
     position: 'absolute',
-    bottom: 30,
     right: 16,
+    top: '50%',
+    transform: [{ translateY: -50 }], // Adjust for two buttons instead of three
+    gap: 16,
     zIndex: 1,
+  },
+  fab: {
+    backgroundColor: Colors.light.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyState: {
     position: 'absolute',
@@ -432,6 +500,10 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     zIndex: 1,
+  },
+  guideButton: {
+    width: 60, // Constrain the touchable area width
+    alignItems: 'center',
   },
   guideWrapper: {
     padding: 4,
@@ -463,7 +535,9 @@ const styles = StyleSheet.create({
     bottom: 100,
     left: 16,
     right: 16,
+    maxHeight: '50%',
     padding: 16,
+    zIndex: 2,
   },
   issueHeader: {
     flexDirection: 'row',
@@ -477,19 +551,22 @@ const styles = StyleSheet.create({
   },
   issueTitle: {
     fontSize: 18,
-    marginBottom: 4,
+    marginRight: 32,
   },
   issueStatus: {
     fontSize: 12,
     textTransform: 'uppercase',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
   issueDescription: {
     fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
   },
   locationButton: {
-    position: 'absolute',
-    bottom: 100,
-    right: 16,
     backgroundColor: '#FFFFFF',
     width: 44,
     height: 44,
@@ -504,6 +581,84 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    padding: 8,
+    zIndex: 1,
+  },
+  issueMetaContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  issueCategory: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    opacity: 0.7,
+  },
+  issueContent: {
+    marginTop: 16,
+  },
+  photoContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  issuePhoto: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  issueStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  statText: {
+    fontSize: 12,
+  },
+  refreshButton: {
+    backgroundColor: '#FFFFFF',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  refreshButtonDisabled: {
+    opacity: 0.7,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 8,
+    paddingBottom: 34,
+    paddingTop: 20,
+  },
+  issueCardModal: {
+    padding: 16,
+    maxHeight: '100%',
+    borderRadius: 16,
+    minHeight: '100%',
   },
 });
 
