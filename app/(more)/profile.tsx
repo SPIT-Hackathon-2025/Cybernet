@@ -306,13 +306,16 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    marginTop: -50,
   },
   titleContainer: {
     marginBottom: 20,
   },
+
   title: {
     fontSize: 32,
     fontWeight: 'bold',
+    paddingTop: 10,
   },
   profileHeader: {
     flexDirection: 'row',
