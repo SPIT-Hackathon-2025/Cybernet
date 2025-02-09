@@ -17,6 +17,8 @@ import { openSettings } from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -42,7 +44,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (user) {
       requestLocationAndZoom();
-      loadIssuesInBounds();
     }
     startBounceAnimation();
 
@@ -57,6 +58,15 @@ export default function HomeScreen() {
       }
     };
   }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        console.log('Tab focused, fetching issues...');
+        loadIssuesInBounds();
+      }
+    }, [user])
+  );
 
   const startBounceAnimation = () => {
     RNAnimated.loop(
@@ -74,7 +84,7 @@ export default function HomeScreen() {
       ])
     ).start();
   };
-e
+
   const requestLocationAndZoom = async () => {
     try {
       if (isLocatingUser) return;
@@ -323,13 +333,15 @@ e
           color={Colors.light.primary} 
         />
       </TouchableOpacity>
-
       {selectedIssue && (
         <Card style={styles.issueCard}>
           <View style={styles.issueHeader}>
-            <View>
-              <ThemedText type="title" style={styles.issueTitle}>
-                {selectedIssue.title}
+            <View style={styles.issueTitleContainer}>
+              <ThemedText type="title" numberOfLines={1} style={styles.issueTitle}>
+                {selectedIssue.title.length > 30 
+                  ? selectedIssue.title.substring(0, 30) + '...'
+                  : selectedIssue.title
+                }
               </ThemedText>
               <ThemedText style={styles.issueStatus} dimmed>
                 {selectedIssue.status.replace('_', ' ').toUpperCase()}
@@ -342,7 +354,11 @@ e
               View Details
             </Button>
           </View>
-          <ThemedText style={styles.issueDescription} dimmed>
+          <ThemedText 
+            style={styles.issueDescription} 
+            dimmed 
+            numberOfLines={2}
+          >
             {selectedIssue.description}
           </ThemedText>
         </Card>
@@ -454,6 +470,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
+  },
+  issueTitleContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   issueTitle: {
     fontSize: 18,
