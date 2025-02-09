@@ -27,8 +27,8 @@ export default function HomeScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [region, setRegion] = useState<Region>({
     // Mumbai Andheri coordinates
-    latitude: 19.1136,
-    longitude: 72.8697,
+    latitude: -122.545257,
+    longitude: 37.513774,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
@@ -42,6 +42,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (user) {
       requestLocationAndZoom();
+      loadIssuesInBounds();
     }
     startBounceAnimation();
 
@@ -56,10 +57,6 @@ export default function HomeScreen() {
       }
     };
   }, [user]);
-
-  useEffect(() => {
-    loadIssuesInBounds();
-  }, [region]);
 
   const startBounceAnimation = () => {
     RNAnimated.loop(
@@ -77,45 +74,34 @@ export default function HomeScreen() {
       ])
     ).start();
   };
-
+e
   const requestLocationAndZoom = async () => {
     try {
-      // Prevent multiple rapid location requests
       if (isLocatingUser) return;
       setIsLocatingUser(true);
 
-      // First check if location services are enabled
       const locationEnabled = await Location.hasServicesEnabledAsync();
-      
       if (!locationEnabled) {
         Alert.alert(
           'Location Services Disabled',
           'Please enable location services to use all features of the app.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Settings', 
-              onPress: () => openSettings()
-            }
+            { text: 'Open Settings', onPress: () => openSettings() }
           ]
         );
         setIsLocatingUser(false);
         return;
       }
 
-      // Then check/request permissions
       const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
-      
       if (existingStatus === 'denied') {
         Alert.alert(
           'Permission Required',
-          'PokéGuide needs location access to help you find nearby issues. Please enable it in your settings.',
+          'PokéGuide needs location access to help you find nearby issues.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Settings',
-              onPress: () => openSettings()
-            }
+            { text: 'Open Settings', onPress: () => openSettings() }
           ]
         );
         setIsLocatingUser(false);
@@ -127,7 +113,7 @@ export default function HomeScreen() {
         if (status !== 'granted') {
           Alert.alert(
             'Permission Denied',
-            'You need to grant location permissions to use all features of the app.',
+            'You need to grant location permissions to use all features.',
             [{ text: 'OK' }]
           );
           setIsLocatingUser(false);
@@ -135,45 +121,16 @@ export default function HomeScreen() {
         }
       }
 
-      // Get location with high accuracy
       const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        mayShowUserSettingsDialog: false
+        accuracy: Location.Accuracy.Balanced,
       });
       
       setLocation(currentLocation);
+      animateToLocation(currentLocation);
 
-      // Smoothly animate to user's location with a nice zoom effect
-      if (mapRef.current) {
-        // First zoom out slightly
-        await mapRef.current.animateCamera({
-          center: {
-            latitude: currentLocation.coords.latitude,
-            longitude: currentLocation.coords.longitude,
-          },
-          pitch: 45,
-          heading: 0,
-          altitude: 5000,
-          zoom: 12
-        }, { duration: 1000 });
-
-        // Then zoom in closer to the location
-        await mapRef.current.animateCamera({
-          center: {
-            latitude: currentLocation.coords.latitude,
-            longitude: currentLocation.coords.longitude,
-          },
-          pitch: 0,
-          heading: 0,
-          altitude: 1000,
-          zoom: 16
-        }, { duration: 1500 });
-      }
-
-      // Add debounce to prevent rapid location updates
-      locationTimeout.current = setTimeout(() => {
+      setTimeout(() => {
         setIsLocatingUser(false);
-      }, 5000);
+      }, 1500);
 
     } catch (error) {
       console.error('Error getting location:', error);
@@ -182,19 +139,30 @@ export default function HomeScreen() {
         'Could not get your location. Please check your settings and try again.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Open Settings',
-            onPress: () => openSettings()
-          }
+          { text: 'Open Settings', onPress: () => openSettings() }
         ]
       );
       setIsLocatingUser(false);
     }
   };
 
+  const animateToLocation = async (location: Location.LocationObject) => {
+    if (mapRef.current) {
+      await mapRef.current.animateCamera({
+        center: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+        pitch: 0,
+        heading: 0,
+        altitude: 1000,
+        zoom: 16
+      }, { duration: 1000 });
+    }
+  };
+
   const handleGuidePress = () => {
     setShowGuideMessage(!showGuideMessage);
-    // Updated haptic feedback implementation
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -202,12 +170,11 @@ export default function HomeScreen() {
 
   const loadIssuesInBounds = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_issues_in_bounds', {
-        min_lat: region.latitude - region.latitudeDelta / 2,
-        min_lng: region.longitude - region.longitudeDelta / 2,
-        max_lat: region.latitude + region.latitudeDelta / 2,
-        max_lng: region.longitude + region.longitudeDelta / 2,
-      });
+      console.log('Fetching all issues...');
+      
+      const { data, error } = await supabase.rpc('get_all_issues');
+      
+      console.log('get_all_issues response:', { data, error });
 
       if (error) throw error;
       setIssues(data || []);
@@ -286,7 +253,6 @@ export default function HomeScreen() {
         showsScale={true}
         onRegionChangeComplete={(newRegion) => {
           setRegion(newRegion);
-          loadIssuesInBounds();
         }}
         customMapStyle={mapStyle}
       >
