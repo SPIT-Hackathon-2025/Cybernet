@@ -10,6 +10,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { useOAuth } from '@clerk/clerk-expo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,8 +31,27 @@ export default function SignInScreen() {
   const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
+
+  useEffect(() => {
+    loadSavedCredentials();
+  }, []);
+
+  const loadSavedCredentials = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem('userEmail');
+      const savedPassword = await AsyncStorage.getItem('userPassword');
+      if (savedEmail && savedPassword) {
+        setEmail(savedEmail);
+        setPassword(savedPassword);
+        setRememberMe(true);
+      }
+    } catch (error) {
+      console.error('Error loading credentials:', error);
+    }
+  };
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -42,6 +62,14 @@ export default function SignInScreen() {
     try {
       setLoading(true);
       await signIn(email, password);
+      
+      if (rememberMe) {
+        await AsyncStorage.setItem('userEmail', email);
+        await AsyncStorage.setItem('userPassword', password);
+      } else {
+        await AsyncStorage.removeItem('userEmail');
+        await AsyncStorage.removeItem('userPassword');
+      }
     } catch (error) {
       // Error is handled by AuthContext
     } finally {
@@ -62,6 +90,23 @@ export default function SignInScreen() {
       Alert.alert('Error', 'Failed to sign in with Google. Please try again.');
     }
   }, []);
+
+  const renderRememberMe = () => (
+    <TouchableOpacity 
+      style={styles.rememberMeContainer}
+      onPress={() => setRememberMe(!rememberMe)}
+    >
+      <View style={[
+        styles.checkbox,
+        rememberMe && styles.checkboxChecked
+      ]}>
+        {rememberMe && (
+          <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+        )}
+      </View>
+      <ThemedText style={styles.rememberMeText}>Remember Me</ThemedText>
+    </TouchableOpacity>
+  );
 
   return (
     <KeyboardAvoidingView 
@@ -104,6 +149,8 @@ export default function SignInScreen() {
                 onChangeText={setPassword}
                 secureTextEntry
               />
+
+              {renderRememberMe()}
 
               <Link href="/reset-password" asChild>
                 <TouchableOpacity>
@@ -266,5 +313,28 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     includeFontPadding: false,
     textAlignVertical: 'center',
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#FF5D00',
+    borderColor: '#FF5D00',
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 }); 

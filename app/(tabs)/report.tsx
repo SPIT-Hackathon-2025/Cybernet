@@ -145,36 +145,38 @@ export default function ReportScreen() {
 
       console.log('Submitting issue with data:', issueData);
       
-      const issue = await issueService.createIssue(issueData);
+      const response = await issueService.createIssue(issueData);
 
-      // Award points only after successful submission
-      await gamificationService.awardPoints(user!.id, 50, 'issue_report');
-      
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setCategory('');
-      setPhotos([]);
-      setErrors({});
-      
-      Alert.alert(
-        'Success! 🎉',
-        'Your report has been submitted successfully. Thank you for helping the community!',
-        [
-          { 
-            text: 'View Report', 
-            onPress: () => router.push(`/issue/${issue.id}`)
-          },
-          {
-            text: 'Report Another',
-            onPress: () => {
-              setGuideEmotion('explaining');
+      if (response.status == "open") {
+        // Award points only after successful submission
+        // await gamificationService.awardPoints(user!.id, 50, 'issue_report');
+        
+        // Reset form
+        setTitle('');
+        setDescription('');
+        setCategory('');
+        setPhotos([]);
+        setErrors({});
+        
+        Alert.alert(
+          'Accepted! 🎉',
+          'Your report has been submitted successfully. Thank you for helping the community!',
+          [
+            { 
+              text: 'View Report', 
+              onPress: () => router.push(`/issue/${response.id}`)
+            },
+            {
+              text: 'Report Another',
+              onPress: () => {
+                setGuideEmotion('explaining');
+              }
             }
-          }
-        ]
-      );
-      
-      setGuideEmotion('happy-with-football');
+          ]
+        );
+        
+        setGuideEmotion('happy-with-football');
+      }
     } catch (error) {
       console.error('Error creating issue:', error);
       setGuideEmotion('thinking');

@@ -25,25 +25,26 @@ export const issueService = {
     return data;
   },
 
-  async createIssue(issue: Partial<Issue>): Promise<Issue> {
-    if (!issue.location || !issue.location.coordinates) {
-      throw new Error('Location coordinates are required');
-    }
-
-    const { data, error } = await supabase
-      .rpc('create_issue', {
-        p_title: issue.title,
-        p_description: issue.description,
-        p_category: issue.category,
-        p_longitude: issue.location.coordinates[0],
-        p_latitude: issue.location.coordinates[1],
-        p_photos: issue.photos,
-        p_user_id: issue.user_id,
-        p_status: issue.status
+  async createIssue(issueData: Partial<Issue>): Promise<Issue> {
+    const response = await supabase
+      .rpc('submit_issue', {
+        p_title: issueData.title,
+        p_description: issueData.description,
+        p_category: issueData.category,
+        p_location: issueData.location,
+        p_photos: issueData.photos,
+        p_user_id: issueData.user_id
       });
 
-    if (error) throw error;
-    return data;
+    // Log the complete response
+    console.log('Complete response from submit_issue:', response);
+
+    if (response.error) {
+      console.error('Error creating issue:', response.error);
+      throw response.error;
+    }
+
+    return response.data;
   },
 
   subscribeToIssues(callback: (issue: Issue) => void) {
@@ -72,6 +73,10 @@ export const issueService = {
 
     if (error) throw error;
     return data;
+  },
+
+  getIssue: async function(id: string): Promise<Issue> {
+    return this.getIssueById(id);
   },
 
   async updateIssue(id: string, updates: Partial<Issue>): Promise<Issue> {
@@ -106,5 +111,9 @@ export const issueService = {
 
     if (error) throw error;
     return data;
+  },
+
+  findIssueById(issues: Issue[], id: string): Issue | undefined {
+    return issues.find(issue => issue.id === id);
   }
 }; 

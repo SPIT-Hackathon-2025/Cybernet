@@ -34,6 +34,12 @@ const menuItems: MenuItem[] = [
     route: '/(more)/profile',
   },
   {
+    id: 'discussions',
+    title: 'Discussions',
+    icon: 'chatbubbles',
+    route: '/(more)/discussions',
+  },
+  {
     id: 'achievements',
     title: 'Achievements',
     icon: 'trophy',
