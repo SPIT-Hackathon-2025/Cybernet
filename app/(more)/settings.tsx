@@ -94,7 +94,7 @@ export default function SettingsScreen() {
       description: 'Manage your data and privacy preferences',
       type: 'action',
       icon: 'shield',
-      onPress: () => router.push('/privacy'),
+      onPress: () => router.push('/(more)/privacy'),
     },
     {
       id: 'about',
@@ -102,7 +102,7 @@ export default function SettingsScreen() {
       description: 'Learn more about PokemonGo: Community Edition',
       type: 'action',
       icon: 'information-circle',
-      onPress: () => router.push('/about'),
+      onPress: () => router.push('/(more)/about'),
     },
   ]);
 

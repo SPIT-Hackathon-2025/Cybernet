@@ -206,30 +206,50 @@ export default function LostFoundScreen() {
 
     try {
       setLoading(true);
+      
+      // Format the data according to your database schema
       const newItem = {
         title: title.trim(),
         description: description.trim(),
+        location: `POINT(${selectedVenue!.longitude} ${selectedVenue!.latitude})`, // PostGIS format
+        status: formType, // 'lost' or 'found'
+        reporter_id: user!.id,
+        photo: photos.length > 0 ? photos[0] : null, // Store first photo URL
         item_type: itemType,
-        venue_id: selectedVenue!.id,
-        user_id: user!.id,
-        photos,
         contact_info: {
           email: email.trim(),
           phone: phone.trim()
         },
-        status: formType,
-        latitude: selectedVenue!.latitude,
-        longitude: selectedVenue!.longitude
+        venue_id: selectedVenue!.id,
+        updated_at: new Date().toISOString()
       };
 
-      await createLostFoundItem(newItem);
+      // Insert data into Supabase
+      const { data, error } = await supabase
+        .from('lost_items')
+        .insert(newItem)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Success handling
       setShowForm(false);
       resetForm();
       loadItems();
-      Alert.alert('Success', `${formType === 'lost' ? 'Lost' : 'Found'} item reported successfully`);
+      Alert.alert(
+        'Success',
+        `Your ${formType} item has been successfully reported!`,
+        [{ text: 'OK' }]
+      );
+
     } catch (error) {
       console.error('Error reporting item:', error);
-      Alert.alert('Error', `Failed to report ${formType} item. Please try again.`);
+      Alert.alert(
+        'Error',
+        `Failed to report ${formType} item. Please try again.`,
+        [{ text: 'OK' }]
+      );
     } finally {
       setLoading(false);
     }

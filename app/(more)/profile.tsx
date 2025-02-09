@@ -333,14 +333,17 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 16,
     marginRight: 12,
+    flexShrink: 1,
   },
   username: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 4,
+    flexShrink: 1,
   },
   rank: {
-    fontSize: 16,
+    fontSize: 14,
+    flexShrink: 1,
   },
   editButton: {
     width: 40,
@@ -389,22 +392,25 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     padding: 16,
-    gap: 12,
+    gap: 8,
     marginTop: -30,
   },
   statCard: {
     flex: 1,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
+    minWidth: 0,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 20,
     marginTop: 8,
+    textAlign: 'center',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
     opacity: 0.7,
     marginTop: 4,
+    textAlign: 'center',
   },
   settingsCard: {
     margin: 16,
@@ -412,7 +418,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   settingsTitle: {
-    fontSize: 20,
+    fontSize: 18,
     marginBottom: 16,
   },
   settingRow: {
@@ -423,6 +429,8 @@ const styles = StyleSheet.create({
   },
   settingText: {
     flex: 1,
+    flexShrink: 1,
+    fontSize: 14,
   },
   settingInput: {
     flex: 1,
@@ -440,8 +448,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     marginBottom: 12,
+    flexShrink: 1,
   },
   badgesScroll: {
     flexDirection: 'row',
@@ -455,6 +464,8 @@ const styles = StyleSheet.create({
   badgeName: {
     marginTop: 8,
     textAlign: 'center',
+    fontSize: 12,
+    flexWrap: 'wrap',
   },
   badgeDate: {
     fontSize: 12,
@@ -464,15 +475,18 @@ const styles = StyleSheet.create({
   activityCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     marginBottom: 8,
   },
   activityInfo: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 8,
+    flexShrink: 1,
   },
   activityTitle: {
-    fontSize: 16,
+    fontSize: 14,
+    flexWrap: 'wrap',
   },
   activityDate: {
     fontSize: 12,
@@ -489,8 +503,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   badgeTitle: {
-    fontSize: 14,
+    fontSize: 12,
     textAlign: 'center',
+    flexWrap: 'wrap',
   },
   badgeCardImage: {
     width: 60,

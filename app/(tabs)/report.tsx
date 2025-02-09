@@ -232,6 +232,7 @@ export default function ReportScreen() {
             <ThemedText style={styles.label}>Title</ThemedText>
             <TextInput
               placeholder="What's the issue?"
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={title}
               onChangeText={setTitle}
               style={[styles.input, errors.title && styles.inputError]}
@@ -246,6 +247,7 @@ export default function ReportScreen() {
             <ThemedText style={styles.label}>Description</ThemedText>
             <TextInput
               placeholder="Provide more details about the issue..."
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={description}
               onChangeText={setDescription}
               multiline
