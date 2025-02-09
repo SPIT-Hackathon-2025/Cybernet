@@ -28,6 +28,17 @@ export interface LostFoundItem {
   venue_name: string | null;
 }
 
+export interface Venue {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  verified: boolean;
+  created_at: string;
+  updated_at: string;
+  distance_meters?: number;
+}
+
 export const getCurrentLocation = async (): Promise<LocationData> => {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -138,6 +149,73 @@ export const createLostFoundItem = async (
       .insert([item])
       .select()
       .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    throw handleSupabaseError(error);
+  }
+};
+
+export const getAllLostItems = async (): Promise<LostFoundItem[]> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_all_lost_items');
+
+    if (error) throw error;
+    return data.map((item: any) => ({
+      ...item,
+      contact_info: {
+        email: item.contact_info.email || '',
+        phone: item.contact_info.phone || ''
+      }
+    }));
+  } catch (error: any) {
+    throw handleSupabaseError(error);
+  }
+};
+
+export const getAllVerifiedVenues = async () => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_all_venues');
+
+    if (error) throw error;
+    return data.filter(venue => venue.verified).map(venue => ({
+      id: venue.id,
+      name: venue.name,
+      latitude: venue.coordinates.latitude,
+      longitude: venue.coordinates.longitude,
+      verified: venue.verified,
+      created_at: venue.created_at,
+      updated_at: venue.updated_at
+    }));
+  } catch (error: any) {
+    throw handleSupabaseError(error);
+  }
+};
+
+export const submitLostItem = async (item: {
+  title: string;
+  description: string;
+  venue_id: string;
+  item_type: string;
+  contact_info: {
+    email: string;
+    phone: string;
+  };
+  photos?: string[];
+}) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('submit_lost_item', {
+        p_title: item.title,
+        p_description: item.description,
+        p_venue_id: item.venue_id,
+        p_item_type: item.item_type,
+        p_contact_info: item.contact_info,
+        p_photos: item.photos
+      });
 
     if (error) throw error;
     return data;
