@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Image, View, Dimensions, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/ThemedText';
 import { TextInput } from '@/components/ui/TextInput';
@@ -8,10 +8,26 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import { useOAuth } from '@clerk/clerk-expo';
 
 const { width, height } = Dimensions.get('window');
 
+// Handle any pending authentication sessions
+WebBrowser.maybeCompleteAuthSession();
+
+export const useWarmUpBrowser = () => {
+  useEffect(() => {
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    }
+  }, []);
+};
+
 export default function SignInScreen() {
+  useWarmUpBrowser();
+  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,6 +48,20 @@ export default function SignInScreen() {
       setLoading(false);
     }
   };
+
+  const handleGoogleSignIn = useCallback(async () => {
+    try {
+      const { createdSessionId, setActive } = await startOAuthFlow();
+
+      if (createdSessionId) {
+        await setActive({ session: createdSessionId });
+        router.replace('/(auth)/welcome');
+      }
+    } catch (err) {
+      console.error('OAuth error:', err);
+      Alert.alert('Error', 'Failed to sign in with Google. Please try again.');
+    }
+  }, []);
 
   return (
     <KeyboardAvoidingView 
@@ -102,7 +132,7 @@ export default function SignInScreen() {
               </View>
 
               <Button
-                onPress={signInWithGoogle}
+                 onPress={handleGoogleSignIn}
                 variant="outline"
                 size="large"
                 style={styles.googleButton}

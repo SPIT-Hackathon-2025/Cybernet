@@ -24,6 +24,12 @@ export default function AuthLayout() {
           headerShown: false 
         }} 
       />
+      <Stack.Screen 
+        name="welcome" 
+        options={{ 
+          headerShown: false 
+        }} 
+      />
     </Stack>
   );
 } 
