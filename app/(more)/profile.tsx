@@ -8,12 +8,36 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { gamificationService } from '@/services/gamificationService';
-import { UserProfile } from '@/types';
+import { UserProfile, Achievement, TrainerRank } from '@/types';
 import { PokeguideCharacter } from '@/components/PokeguideCharacter';
 import { CivicCoin } from '@/components/CivicCoin';
 import { Button } from '@/components/ui/Button';
 import * as ImagePicker from 'expo-image-picker';
 import { TextInput } from '@/components/ui/TextInput';
+
+const RANK_BADGES = {
+  'Novice Trainer': require('@/assets/images/badges/Novice Trainer.png'),
+  'Issue Scout': require('@/assets/images/badges/Issue Scout.png'),
+  'Community Guardian': require('@/assets/images/badges/Community Guardian.png'),
+  'District Champion': require('@/assets/images/badges/District Champion.png'),
+  'Elite PokeRanger': require('@/assets/images/badges/Elite PokeRanger.png'),
+} as const;
+
+const RANK_COLORS = {
+  'Novice Trainer': Colors.light.warning,
+  'Issue Scout': Colors.light.success,
+  'Community Guardian': Colors.light.accent,
+  'District Champion': Colors.light.primary,
+  'Elite PokeRanger': Colors.light.error,
+} as const;
+
+const RANK_REQUIREMENTS = {
+  'Novice Trainer': 0,
+  'Issue Scout': 500,
+  'Community Guardian': 1000,
+  'District Champion': 2500,
+  'Elite PokeRanger': 5000,
+} as const;
 
 const getBadgeImage = (badgeName: string) => {
   switch (badgeName) {
@@ -198,13 +222,11 @@ export default function ProfileScreen() {
         {getHighestBadge(profile.badges) && (
           <Card style={styles.statCard}>
             <Image 
-              source={getBadgeImage(getHighestBadge(profile.badges).name)}
-              style={styles.badgeImage}
+              source={RANK_BADGES[getHighestBadge(profile.badges).name as TrainerRank]}
+              style={styles.badgeStatImage}
+              resizeMode="contain"
             />
-            <ThemedText type="title" style={[styles.statValue, styles.badgeTitle]}>
-              {getHighestBadge(profile.badges).name}
-            </ThemedText>
-            <ThemedText style={styles.statLabel}>Highest Rank</ThemedText>
+            <ThemedText style={styles.badgeStatLabel}>{getHighestBadge(profile.badges).name}</ThemedText>
           </Card>
         )}
       </View>
@@ -248,26 +270,31 @@ export default function ProfileScreen() {
       </Card>
 
       <View style={styles.section}>
-        <ThemedText type="title" style={styles.sectionTitle}>Badges</ThemedText>
+        <ThemedText type="title" style={styles.sectionTitle}>Badges & Achievements</ThemedText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.badgesScroll}>
-          {profile.badges.map((badge) => (
-            <Card key={badge.id} style={[
-              styles.badgeCard,
-              !badge.unlocked && styles.lockedBadge
-            ]}>
-              <Image 
-                source={getBadgeImage(badge.name)}
-                style={[
-                  styles.badgeCardImage,
-                  !badge.unlocked && styles.lockedBadgeImage
-                ]}
-              />
-              <ThemedText style={styles.badgeName}>{badge.name}</ThemedText>
-              <ThemedText style={styles.badgeDate}>
-                {badge.unlocked_at ? new Date(badge.unlocked_at).toLocaleDateString() : 'Locked'}
-              </ThemedText>
-            </Card>
-          ))}
+          {Object.entries(RANK_BADGES).map(([rank, badge]) => {
+            const isUnlocked = profile.civic_coins >= RANK_REQUIREMENTS[rank as TrainerRank];
+            return (
+              <Card key={rank} style={[styles.badgeCard, !isUnlocked && styles.lockedBadge]}>
+                <Image 
+                  source={badge}
+                  style={[styles.badgeIcon, !isUnlocked && styles.lockedBadgeImage]}
+                  resizeMode="contain"
+                />
+                <View style={styles.badgeInfo}>
+                  <ThemedText style={styles.badgeName}>{rank}</ThemedText>
+                  <View style={styles.requirementContainer}>
+                    <CivicCoin amount={RANK_REQUIREMENTS[rank as TrainerRank]} size="small" />
+                  </View>
+                </View>
+                {isUnlocked && (
+                  <View style={[styles.unlockedBadge, { backgroundColor: RANK_COLORS[rank as TrainerRank] }]}>
+                    <ThemedText style={styles.unlockedText}>✓</ThemedText>
+                  </View>
+                )}
+              </Card>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -306,13 +333,16 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    marginTop: -50,
   },
   titleContainer: {
     marginBottom: 20,
   },
+
   title: {
     fontSize: 32,
     fontWeight: 'bold',
+    paddingTop: 10,
   },
   profileHeader: {
     flexDirection: 'row',
@@ -399,6 +429,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     minWidth: 0,
   },
   statValue: {
@@ -456,21 +487,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   badgeCard: {
-    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
-    width: 120,
+    padding: 8,
+    marginRight: 8,
+    width: 160,
+    height: 56,
+  },
+  badgeIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 8,
+  },
+  badgeInfo: {
+    flex: 1,
   },
   badgeName: {
-    marginTop: 8,
-    textAlign: 'center',
     fontSize: 12,
-    flexWrap: 'wrap',
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  badgeDate: {
+  requirementContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  unlockedBadge: {
+    position: 'absolute',
+    right: 8,
+    top: '50%',
+    marginTop: -10,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unlockedText: {
+    color: '#FFFFFF',
     fontSize: 12,
-    opacity: 0.7,
-    marginTop: 4,
+    fontWeight: 'bold',
+  },
+  lockedBadge: {
+    opacity: 0.5,
+  },
+  lockedBadgeImage: {
+    opacity: 0.3,
+  },
+  badgeStatImage: {
+    width: 32,
+    height: 32,
+    marginBottom: 4,
+  },
+  badgeStatLabel: {
+    fontSize: 10,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   activityCard: {
     flexDirection: 'row',
@@ -496,26 +567,5 @@ const styles = StyleSheet.create({
   activityPoints: {
     color: Colors.light.success,
     fontWeight: 'bold',
-  },
-  badgeImage: {
-    width: 40,
-    height: 40,
-    marginBottom: 8,
-  },
-  badgeTitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    flexWrap: 'wrap',
-  },
-  badgeCardImage: {
-    width: 60,
-    height: 60,
-    marginBottom: 8,
-  },
-  lockedBadge: {
-    opacity: 0.5,
-  },
-  lockedBadgeImage: {
-    opacity: 0.3,
   },
 }); 
